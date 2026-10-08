@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum AgentPermissionMode {
+  DEFAULT
+  ACCEPT_EDITS
+  PLAN
+  DONT_ASK
+  BYPASS_PERMISSIONS
+}
+
+enum AgentSessionStatus {
+  IDLE
+  RUNNING
+  WAITING
+  COMPLETED
+  ABORTED
+  FAILED
+}
+
+enum AgentInteractionType {
+  PERMISSION
+  QUESTION
+}
+
+enum AgentInteractionStatus {
+  PENDING
+  ANSWERED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum AgentMcpTransport {
+  STDIO
+  HTTP
+  SSE
+}
+
+enum AgentMcpStatus {
+  DISCONNECTED
+  CONNECTING
+  CONNECTED
+  ERROR
+}
+
+model User {
+  id           BigInt   @id @default(autoincrement())
+  userAccount  String   @unique @map("user_account") @db.VarChar(256)
+  userPassword String   @map("user_password") @db.VarChar(512)
+  username     String?  @map("username") @db.VarChar(256)
+  userAvatar   String?  @map("user_avatar") @db.VarChar(1024)
+  userProfile  String?  @map("user_profile") @db.VarChar(512)
+  userRole     UserRole @default(USER) @map("user_role")
+  editTime     DateTime @default(now()) @map("edit_time")
+  createTime   DateTime @default(now()) @map("create_time")
+  updateTime   DateTime @updatedAt @map("update_time")
+  isDelete     Boolean  @default(false) @map("is_delete")
+
+  apps            App[]
+  agentWorkspaces AgentWorkspace[]
+
+  @@index([username], map: "idx_users_username")
+  @@map("users")
+}
+
+model App {
+  id         BigInt   @id @default(autoincrement())
+  appName    String?  @map("app_name") @db.VarChar(256)
+  appCover   String?  @map("app_cover") @db.VarChar(512)
+  initPrompt String?  @map("init_prompt") @db.Text
+  priority   Int      @default(0)
+  userId     BigInt   @map("user_id")
+  editTime   DateTime @default(now()) @map("edit_time")
+  createTime DateTime @default(now()) @map("create_time")
+  updateTime DateTime @updatedAt @map("update_time")
+  isDelete   Boolean  @default(false) @map("is_delete")
+
+  user            User             @relation(fields: [userId], references: [id])
+  agentWorkspaces AgentWorkspace[]
+
+  @@index([appName], map: "idx_apps_app_name")
+  @@index([userId], map: "idx_apps_user_id")
+  @@index([priority, createTime], map: "idx_apps_priority_create_time")
+  @@map("apps")
+}
+
+model AgentWorkspace {
+  id               BigInt              @id @default(autoincrement())
+  userId           BigInt              @map("user_id")
+  appId            BigInt              @map("app_id")
+  currentSessionId String?             @unique @map("current_session_id") @db.Uuid
+  permissionMode   AgentPermissionMode @default(BYPASS_PERMISSIONS) @map("permission_mode")
+  sandboxEnabled   Boolean             @default(false) @map("sandbox_enabled")
+  memoryEnabled    Boolean             @default(true) @map("memory_enabled")
+  hooksEnabled     Boolean             @default(true) @map("hooks_enabled")
+  modelOverride    String?             @map("model_override") @db.VarChar(256)
+  createTime       DateTime            @default(now()) @map("create_time")
+  updateTime       DateTime            @updatedAt @map("update_time")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  app            App            @relation(fields: [appId], references: [id], onDelete: Cascade)
+  currentSession AgentSession?  @relation("CurrentAgentSession", fields: [currentSessionId], references: [id], onDelete: SetNull)
+  sessions       AgentSession[] @relation("WorkspaceAgentSessions")
+  mcpServers     AgentMcpServer[]
+  hooks          AgentHook[]
+
+  @@unique([userId, appId], map: "agent_workspaces_user_id_app_id_key")
+  @@index([appId], map: "idx_agent_workspaces_app_id")
+  @@map("agent_workspaces")
+}
+
+model AgentSession {
+  id                String             @id @default(uuid()) @db.Uuid
+  workspaceId       BigInt             @map("workspace_id")
+  status            AgentSessionStatus @default(IDLE)
+  context           Json               @default("{}")
+  lastEventSequence BigInt             @default(0) @map("last_event_sequence")
+  activeSkills      Json               @default("[]") @map("active_skills")
+  runtimeMetadata   Json               @default("{}") @map("runtime_metadata")
+  createTime        DateTime           @default(now()) @map("create_time")
+  updateTime        DateTime           @updatedAt @map("update_time")
+  lastActiveTime    DateTime           @default(now()) @map("last_active_time")
+  completedTime     DateTime?          @map("completed_time")
+
+  workspace           AgentWorkspace         @relation("WorkspaceAgentSessions", fields: [workspaceId], references: [id], onDelete: Cascade)
+  currentForWorkspace AgentWorkspace?        @relation("CurrentAgentSession")
+  transcriptEvents    AgentTranscriptEvent[]
+  interactions        AgentInteraction[]
+
+  @@index([workspaceId, updateTime], map: "idx_agent_sessions_workspace_update_time")
+  @@map("agent_sessions")
+}
+
+model AgentTranscriptEvent {
+  id         BigInt   @id @default(autoincrement())
+  sessionId  String   @map("session_id") @db.Uuid
+  sequence   BigInt
+  turnId     String?  @map("turn_id") @db.Uuid
+  kind       String   @db.VarChar(128)
+  payload    Json
+  createTime DateTime @default(now()) @map("create_time")
+
+  session AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, sequence], map: "agent_transcript_events_session_sequence_key")
+  @@index([sessionId, createTime], map: "idx_agent_transcript_events_session_create_time")
+  @@map("agent_transcript_events")
+}
+
+model AgentInteraction {
+  id              String                 @id @default(uuid()) @db.Uuid
+  sessionId       String                 @map("session_id") @db.Uuid
+  turnId          String?                @map("turn_id") @db.Uuid
+  type            AgentInteractionType
+  status          AgentInteractionStatus @default(PENDING)
+  requestPayload  Json                   @map("request_payload")
+  responsePayload Json?                  @map("response_payload")
+  createTime      DateTime               @default(now()) @map("create_time")
+  updateTime      DateTime               @updatedAt @map("update_time")
+  expiresTime     DateTime?              @map("expires_time")
+  answeredTime    DateTime?              @map("answered_time")
+
+  session AgentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, status], map: "idx_agent_interactions_session_status")
+  @@map("agent_interactions")
+}
+
+model AgentMcpServer {
+  id               String            @id @default(uuid()) @db.Uuid
+  workspaceId      BigInt            @map("workspace_id")
+  name             String            @db.VarChar(128)
+  transport        AgentMcpTransport
+  command          String?           @db.VarChar(1024)
+  args             Json?             @map("args")
+  url              String?           @db.VarChar(2048)
+  encryptedHeaders String?           @map("encrypted_headers") @db.Text
+  encryptedEnv     String?           @map("encrypted_env") @db.Text
+  enabled          Boolean           @default(true)
+  status           AgentMcpStatus    @default(DISCONNECTED)
+  statusMessage    String?           @map("status_message") @db.Text
+  lastCheckedTime  DateTime?         @map("last_checked_time")
+  createTime       DateTime          @default(now()) @map("create_time")
+  updateTime       DateTime          @updatedAt @map("update_time")
+
+  workspace AgentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name], map: "agent_mcp_servers_workspace_name_key")
+  @@index([workspaceId], map: "idx_agent_mcp_servers_workspace_id")
+  @@map("agent_mcp_servers")
+}
+
+model AgentHook {
+  id          String   @id @default(uuid()) @db.Uuid
+  workspaceId BigInt   @map("workspace_id")
+  event       String   @db.VarChar(128)
+  matcher     String?  @db.VarChar(512)
+  command     String   @db.Text
+  enabled     Boolean  @default(true)
+  timeoutMs   Int      @default(10000) @map("timeout_ms")
+  createTime  DateTime @default(now()) @map("create_time")
+  updateTime  DateTime @updatedAt @map("update_time")
+
+  workspace AgentWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, event], map: "idx_agent_hooks_workspace_event")
+  @@map("agent_hooks")
+}

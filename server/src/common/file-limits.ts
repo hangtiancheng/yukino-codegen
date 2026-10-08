@@ -1,0 +1,2 @@
+export const MAX_PROJECT_FILE_BYTES = 5 * 1024 * 1024;
+export const MAX_PROJECT_FILE_BODY_BYTES = Math.ceil((MAX_PROJECT_FILE_BYTES * 4) / 3) + 64 * 1024;
