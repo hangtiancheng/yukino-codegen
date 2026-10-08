@@ -19,6 +19,7 @@
     "lint:client": "pnpm --filter client lint",
     "lint:server": "pnpm --filter server check:ci",
     "lint": "concurrently \"pnpm lint:client\" \"pnpm lint:server\"",
+    "git:config": "git config user.name hangtiancheng && git config user.email '161043261@qq.com'",
     "git:commit": "git add -A && git commit -m \"feat: Introduce new features\"",
     "git:push": "pnpm git:commit && git push origin main"
   }
