@@ -29,7 +29,7 @@ export function WorkspaceTerminal(): ReactNode {
       cursorBlink: true,
       fontSize: 12,
       fontFamily:
-        '"Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace',
+        'Yukino, "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC", "PingFang SC", "Microsoft YaHei", monospace',
       theme: catppuccinXtermTheme(),
     });
     const fitAddon = new FitAddon();
