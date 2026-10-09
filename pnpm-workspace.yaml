@@ -10,6 +10,4 @@ allowBuilds:
   prisma: false
   protobufjs: true
 
-minimumReleaseAgeExclude:
-  - '@yukino.js/sentry@0.0.1 || 0.0.7'
-  - '@yukino.js/yukino@0.0.1 || 0.0.22 || 0.0.24 || 0.0.36 || 0.0.37'
+minimumReleaseAge: 0
