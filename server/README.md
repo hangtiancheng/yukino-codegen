@@ -228,13 +228,6 @@ pnpm prisma:generate
 pnpm db:migrate
 ```
 
-Pull or prepare the OpenAI models referenced by the environment:
-
-```bash
-openai pull qwen2.5
-openai pull qwen3.5
-```
-
 Start the server:
 
 ```bash
@@ -400,14 +393,6 @@ The model registry creates separate model configurations for:
 - Streaming generation.
 - Reasoning and prompt enhancement.
 - Code quality checking.
-
-Recommended local setup:
-
-```bash
-openai serve
-openai pull qwen2.5
-openai pull qwen3.5
-```
 
 The streaming model must have enough output capacity for complete generated projects. If generated Markdown code fences are often unterminated and files are missing, inspect the final stream chunk metadata. A `done_reason` of `length` usually means `STREAMING_MAX_TOKENS` is too low for the requested project size.
 
