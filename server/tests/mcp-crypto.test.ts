@@ -8,9 +8,6 @@ import {
 } from "../src/agent-runtime/mcp-crypto.js";
 import { HttpError } from "../src/common/index.js";
 
-// AES-256-GCM secret helpers. MCP_SECRET_KEY is pinned in vitest.config.ts so the
-// key resolves to a valid 32-byte value deterministically across runs.
-
 describe("encryptSecret / decryptSecret", () => {
   it("round-trips arbitrary plaintext", () => {
     const plaintext = "super-secret-token=abc123!@#";
@@ -45,7 +42,6 @@ describe("encryptSecret / decryptSecret", () => {
   it("throws when the auth tag / ciphertext is tampered with", () => {
     const packed = encryptSecret("integrity-protected");
     const raw = Buffer.from(packed, "base64");
-    // Flip a bit inside the auth-tag region (bytes 12..27) to trigger GCM failure.
     raw[13] = (raw[13] ?? 0) ^ 0xff;
     const tampered = raw.toString("base64");
     expect(() => decryptSecret(tampered)).toThrow();
@@ -93,7 +89,6 @@ describe("encryptStringMap / decryptStringMap", () => {
   });
 
   it("returns undefined when the decrypted JSON is not an object", () => {
-    // A well-formed ciphertext whose plaintext is a JSON primitive/null.
     expect(decryptStringMap(encryptSecret(JSON.stringify(42)))).toBeUndefined();
     expect(decryptStringMap(encryptSecret(JSON.stringify(null)))).toBeUndefined();
   });

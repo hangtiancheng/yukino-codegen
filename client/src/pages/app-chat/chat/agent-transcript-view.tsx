@@ -190,7 +190,6 @@ type RenderItem = {
   readonly node: ReactNode;
 };
 
-/** Pairs tool_use with its tool_result by toolId and drops noise events. */
 function buildItems(events: ReadonlyArray<AgentTranscriptEvent>): RenderItem[] {
   const resultByToolId = new Map<string, AgentTranscriptEvent>();
   for (const event of events) {

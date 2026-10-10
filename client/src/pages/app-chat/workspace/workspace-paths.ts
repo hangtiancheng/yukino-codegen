@@ -1,12 +1,3 @@
-/**
- * Pure path, hashing, and file-type helpers shared across the workspace.
- *
- * The workspace treats the WebContainer working directory as the root, so all
- * paths here are relative (no leading slash) and use forward slashes.
- */
-
-// Directories that must never trigger a resync, appear in the explorer, or be
-// synced back through the Agent file REST API.
 export const WORKSPACE_IGNORED_SEGMENTS: ReadonlySet<string> = new Set([
   "node_modules",
   "dist",
@@ -103,7 +94,6 @@ const FILENAME_LANGUAGE: Readonly<Record<string, string>> = {
   ".npmrc": "ini",
 };
 
-/** Strip a leading `./` or `/` and collapse duplicate slashes. */
 export function normalizePath(path: string): string {
   return path
     .replace(/^\.\//, "")
@@ -141,7 +131,6 @@ export function isIgnoredSegment(segment: string): boolean {
   return WORKSPACE_IGNORED_SEGMENTS.has(segment);
 }
 
-/** True when any path segment is an ignored directory. */
 export function isIgnoredPath(path: string): boolean {
   return normalizePath(path)
     .split("/")
@@ -159,10 +148,6 @@ export function languageForPath(path: string): string {
   return LANGUAGE_BY_EXTENSION[fileExtension(path)] ?? "plaintext";
 }
 
-/**
- * Deterministic FNV-1a 32-bit hash rendered as hex. Used to compare editor
- * buffers against their last-synced base without keeping full copies around.
- */
 export function hashContents(value: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {

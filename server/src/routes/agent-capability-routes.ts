@@ -64,13 +64,6 @@ const toSessionVo = (session: AgentSessionModel) => ({
   updateTime: session.updateTime,
 });
 
-/**
- * Capability REST under `/app/:appId/agent/*`: bootstrap, skills, hooks, memory,
- * sessions, settings, and teams. Reads require any authenticated observer;
- * mutations require owner/admin. Config changes that alter the agent stack
- * (hooks, model, skills, memory) invalidate the runtime; permission/sandbox/
- * memory-flag changes are applied to the live runtime in place.
- */
 export const registerAgentCapabilityRoutes = (
   router: Hono<AppHonoEnv>,
   deps: AgentCapabilityRoutesDeps,
@@ -87,13 +80,13 @@ export const registerAgentCapabilityRoutes = (
       const sessions = await manager.stores.sessions.listByWorkspace(workspace.id);
       return c.json(
         createSuccessResponse({
-          commands: buildCommandCandidates(workDir),
+          commands: buildCommandCandidates(),
           currentSessionId: workspace.currentSessionId,
           readOnly: !access.writable,
           sessions: sessions.map(toSessionVo),
           settings: toSettingsVo(workspace),
           skills: createSkillRuntime(workDir).list(),
-          subagents: listSubagents(workDir),
+          subagents: listSubagents(),
         }),
       );
     })
@@ -172,8 +165,8 @@ export const registerAgentCapabilityRoutes = (
       return c.json(createSuccessResponse(result));
     })
     .get("/:appId/agent/subagents", async (c) => {
-      const access = await resolveAppAccess(c, appService);
-      return c.json(createSuccessResponse(listSubagents(manager.workDirFor(access.appId))));
+      await resolveAppAccess(c, appService);
+      return c.json(createSuccessResponse(listSubagents()));
     })
     .get("/:appId/agent/memory", async (c) => {
       const access = await resolveAppAccess(c, appService);
@@ -237,11 +230,15 @@ export const registerAgentCapabilityRoutes = (
       return c.json(createSuccessResponse(true));
     })
     .get("/:appId/agent/teams", async (c) => {
-      await resolveAppAccess(c, appService);
-      return c.json(createSuccessResponse(listTeams()));
+      const access = await resolveAppAccess(c, appService);
+      return c.json(createSuccessResponse(listTeams(manager.workDirFor(access.appId))));
     })
     .get("/:appId/agent/teams/:teamName/tasks", async (c) => {
-      await resolveAppAccess(c, appService);
-      return c.json(createSuccessResponse(listTeamTasks(c.req.param("teamName"))));
+      const access = await resolveAppAccess(c, appService);
+      return c.json(
+        createSuccessResponse(
+          listTeamTasks(manager.workDirFor(access.appId), c.req.param("teamName")),
+        ),
+      );
     });
 };

@@ -41,13 +41,6 @@ const toText = (data: unknown): string => {
   return "";
 };
 
-/**
- * Registers `GET /app/:appId/agent/ws`. Auth is cookie-session based (session
- * middleware runs upstream); owners/admins may drive the agent, other logged-in
- * users attach read-only. Run/command/abort work is dispatched fire-and-forget
- * so the same socket can still deliver permission and question responses while a
- * turn is in flight.
- */
 export const registerAgentWs = (router: Hono<AppHonoEnv>, deps: AgentWsDeps): void => {
   router.get(
     "/:appId/agent/ws",

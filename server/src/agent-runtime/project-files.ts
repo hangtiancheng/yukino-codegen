@@ -13,39 +13,16 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
-import {
-  ErrorCode,
-  HttpError,
-  MAX_PROJECT_FILE_BYTES,
-} from "../common/index.js";
+import { ErrorCode, HttpError, MAX_PROJECT_FILE_BYTES } from "../common/index.js";
 
 const MAX_TREE_BYTES = 20 * 1024 * 1024;
 
-/** Segments that must never be traversed or created through the file API. */
-const FORBIDDEN_SEGMENTS = new Set([
-  ".git",
-  ".yukino",
-  ".env",
-  "node_modules",
-  "dist",
-  "build",
-]);
+const FORBIDDEN_SEGMENTS = new Set([".git", ".yukino", ".env", "node_modules", "dist", "build"]);
 
-const SKIPPED_TREE_NAMES = new Set([
-  "node_modules",
-  "dist",
-  "build",
-  ".git",
-  ".yukino",
-]);
+const SKIPPED_TREE_NAMES = new Set(["node_modules", "dist", "build", ".git", ".yukino"]);
 
 export type AppFileEncoding = "base64" | "utf8";
 
-/**
- * Recursive project tree node. Mirrors the client `agentFileTreeNodeSchema`:
- * files carry their relative path, sha256 hash, and inline contents (utf8 or
- * base64); directories carry sorted children.
- */
 export type AgentFileNode =
   | Readonly<{
       type: "file";
@@ -62,51 +39,29 @@ export type AgentFileNode =
       children: readonly AgentFileNode[];
     }>;
 
-const sha256 = (buffer: Buffer): string =>
-  createHash("sha256").update(buffer).digest("hex");
+const sha256 = (buffer: Buffer): string => createHash("sha256").update(buffer).digest("hex");
 
 const shouldIncludeInTree = (name: string): boolean =>
   !name.startsWith(".") && !SKIPPED_TREE_NAMES.has(name);
 
-/**
- * Validates a client-supplied path is a safe relative POSIX path within the
- * project. Rejects absolute paths, backslashes, `..`, and any forbidden segment
- * (.git/.yukino/.env/node_modules/dist/build). Returns the absolute target.
- */
-export const validateRelativePath = (
-  projectDir: string,
-  relativePath: string,
-): string => {
+export const validateRelativePath = (projectDir: string, relativePath: string): string => {
   const trimmed = relativePath.trim();
   if (trimmed.length === 0) {
     throw new HttpError(ErrorCode.ParamsError, "Path cannot be empty");
   }
   if (trimmed.includes("\\")) {
-    throw new HttpError(
-      ErrorCode.ParamsError,
-      "Backslashes are not allowed in paths",
-    );
+    throw new HttpError(ErrorCode.ParamsError, "Backslashes are not allowed in paths");
   }
   if (trimmed.startsWith("/")) {
-    throw new HttpError(
-      ErrorCode.ParamsError,
-      "Absolute paths are not allowed",
-    );
+    throw new HttpError(ErrorCode.ParamsError, "Absolute paths are not allowed");
   }
   const segments = trimmed.split("/");
   for (const segment of segments) {
     if (segment.length === 0 || segment === "." || segment === "..") {
-      throw new HttpError(
-        ErrorCode.ParamsError,
-        "Path traversal is not allowed",
-      );
+      throw new HttpError(ErrorCode.ParamsError, "Path traversal is not allowed");
     }
     if (FORBIDDEN_SEGMENTS.has(segment)) {
-      throw new HttpError(
-        ErrorCode.ForbiddenError,
-        `Path segment is not allowed: ${segment}`,
-        403,
-      );
+      throw new HttpError(ErrorCode.ForbiddenError, `Path segment is not allowed: ${segment}`, 403);
     }
   }
   const base = resolve(projectDir);
@@ -117,22 +72,14 @@ export const validateRelativePath = (
   return target;
 };
 
-/** Rejects the write if any existing ancestor directory is a symlink. */
-const assertNoSymlinkAncestors = async (
-  projectDir: string,
-  target: string,
-): Promise<void> => {
+const assertNoSymlinkAncestors = async (projectDir: string, target: string): Promise<void> => {
   const base = resolve(projectDir);
   let current = dirname(target);
   while (current.length >= base.length && current.startsWith(base)) {
     if (existsSync(current)) {
       const info = await lstat(current);
       if (info.isSymbolicLink()) {
-        throw new HttpError(
-          ErrorCode.ForbiddenError,
-          "Symlinked directories are not allowed",
-          403,
-        );
+        throw new HttpError(ErrorCode.ForbiddenError, "Symlinked directories are not allowed", 403);
       }
     }
     if (current === base) break;
@@ -163,17 +110,11 @@ const readNodes = async (
     if (!entry.isFile()) continue;
     const file = await readFile(fullPath);
     if (file.byteLength > MAX_PROJECT_FILE_BYTES) {
-      throw new HttpError(
-        ErrorCode.OperationError,
-        `Generated file is too large: ${entry.name}`,
-      );
+      throw new HttpError(ErrorCode.OperationError, `Generated file is too large: ${entry.name}`);
     }
     total.bytes += file.byteLength;
     if (total.bytes > MAX_TREE_BYTES) {
-      throw new HttpError(
-        ErrorCode.OperationError,
-        "Generated project is too large to preview",
-      );
+      throw new HttpError(ErrorCode.OperationError, "Generated project is too large to preview");
     }
     const utf8 = isUtf8(file);
     result.push({
@@ -185,7 +126,6 @@ const readNodes = async (
       hash: sha256(file),
     });
   }
-  // Directories first, then files, each alphabetical (matches the client sort).
   return result.sort((left, right) => {
     if (left.type !== right.type) return left.type === "directory" ? -1 : 1;
     return left.name.localeCompare(right.name, undefined, {
@@ -194,22 +134,14 @@ const readNodes = async (
   });
 };
 
-/**
- * Builds the project tree rooted at an empty-path/empty-name directory node.
- * A missing project directory yields an empty root rather than a 404 so a
- * freshly created app opens an empty workspace instead of erroring.
- */
-export const buildAppFileTree = async (
-  projectDir: string,
-): Promise<AgentFileNode> => {
+export const buildAppFileTree = async (projectDir: string): Promise<AgentFileNode> => {
   const empty: AgentFileNode = {
     type: "directory",
     path: "",
     name: "",
     children: [],
   };
-  if (!existsSync(projectDir) || !(await stat(projectDir)).isDirectory())
-    return empty;
+  if (!existsSync(projectDir) || !(await stat(projectDir)).isDirectory()) return empty;
   return { ...empty, children: await readNodes(projectDir, "", { bytes: 0 }) };
 };
 
@@ -256,31 +188,17 @@ export const writeProjectFile = async (
   const target = validateRelativePath(projectDir, input.path);
   await assertNoSymlinkAncestors(projectDir, target);
 
-  const buffer = Buffer.from(
-    input.contents,
-    input.encoding === "base64" ? "base64" : "utf8",
-  );
+  const buffer = Buffer.from(input.contents, input.encoding === "base64" ? "base64" : "utf8");
   if (buffer.byteLength > MAX_PROJECT_FILE_BYTES) {
-    throw new HttpError(
-      ErrorCode.ParamsError,
-      "File contents exceed the size limit",
-    );
+    throw new HttpError(ErrorCode.ParamsError, "File contents exceed the size limit");
   }
 
-  const conflict = await checkExpectedHash(
-    target,
-    input.path,
-    input.expectedHash,
-  );
+  const conflict = await checkExpectedHash(target, input.path, input.expectedHash);
   if (conflict !== undefined) return conflict;
   if (existsSync(target)) {
     const info = await lstat(target);
     if (info.isSymbolicLink() || !info.isFile()) {
-      throw new HttpError(
-        ErrorCode.ForbiddenError,
-        "Target is not a regular file",
-        403,
-      );
+      throw new HttpError(ErrorCode.ForbiddenError, "Target is not a regular file", 403);
     }
   }
 
@@ -291,10 +209,7 @@ export const writeProjectFile = async (
   return { conflict: false, path: input.path, hash: sha256(buffer) };
 };
 
-export const createProjectDirectory = async (
-  projectDir: string,
-  path: string,
-): Promise<void> => {
+export const createProjectDirectory = async (projectDir: string, path: string): Promise<void> => {
   const target = validateRelativePath(projectDir, path);
   await assertNoSymlinkAncestors(projectDir, target);
   await mkdir(target, { recursive: true });
@@ -310,11 +225,7 @@ export const renameProjectEntry = async (
 ): Promise<FileMutationResult> => {
   const source = validateRelativePath(projectDir, input.from);
   const destination = validateRelativePath(projectDir, input.to);
-  const conflict = await checkExpectedHash(
-    source,
-    input.from,
-    input.expectedHash,
-  );
+  const conflict = await checkExpectedHash(source, input.from, input.expectedHash);
   if (conflict !== undefined) return conflict;
   if (!existsSync(source)) {
     throw new HttpError(ErrorCode.NotFoundError, "Source path not found", 404);
@@ -334,11 +245,7 @@ export const deleteProjectEntry = async (
   }>,
 ): Promise<FileMutationResult> => {
   const target = validateRelativePath(projectDir, input.path);
-  const conflict = await checkExpectedHash(
-    target,
-    input.path,
-    input.expectedHash,
-  );
+  const conflict = await checkExpectedHash(target, input.path, input.expectedHash);
   if (conflict !== undefined) return conflict;
   if (!existsSync(target)) {
     throw new HttpError(ErrorCode.NotFoundError, "Path not found", 404);

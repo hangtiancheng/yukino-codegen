@@ -97,16 +97,8 @@ describe("AsyncLock", () => {
     gate.resolve();
 
     await Promise.all([first, failureAssertion, third, drained]);
-    expect(order).toEqual([
-      "first:start",
-      "first:end",
-      "failed",
-      "third",
-      "drained",
-    ]);
-    await expect(lock.run(async () => "still usable")).resolves.toBe(
-      "still usable",
-    );
+    expect(order).toEqual(["first:start", "first:end", "failed", "third", "drained"]);
+    await expect(lock.run(async () => "still usable")).resolves.toBe("still usable");
   });
 });
 
@@ -125,32 +117,21 @@ describe("runtime manager lifecycle", () => {
     });
 
     const firstRequest = manager.getOrCreate(workspace.userId, workspace.appId);
-    const concurrentRequest = manager.getOrCreate(
-      workspace.userId,
-      workspace.appId,
-    );
+    const concurrentRequest = manager.getOrCreate(workspace.userId, workspace.appId);
     await Promise.resolve();
     expect(upsert).toHaveBeenCalledTimes(1);
 
     firstWorkspace.resolve(workspace);
-    const [firstRuntime, concurrentRuntime] = await Promise.all([
-      firstRequest,
-      concurrentRequest,
-    ]);
+    const [firstRuntime, concurrentRuntime] = await Promise.all([firstRequest, concurrentRequest]);
     expect(concurrentRuntime).toBe(firstRuntime);
 
     const disposal = deferred<void>();
-    const disposeSpy = vi
-      .spyOn(firstRuntime, "dispose")
-      .mockImplementation(() => disposal.promise);
+    const disposeSpy = vi.spyOn(firstRuntime, "dispose").mockImplementation(() => disposal.promise);
     const invalidation = manager.invalidate(workspace.userId, workspace.appId);
     await Promise.resolve();
     expect(disposeSpy).toHaveBeenCalledTimes(1);
 
-    const replacementRequest = manager.getOrCreate(
-      workspace.userId,
-      workspace.appId,
-    );
+    const replacementRequest = manager.getOrCreate(workspace.userId, workspace.appId);
     await Promise.resolve();
     expect(upsert).toHaveBeenCalledTimes(1);
 
@@ -174,9 +155,7 @@ describe("runtime manager lifecycle", () => {
     });
 
     const creation = manager.getOrCreate(workspace.userId, workspace.appId);
-    const creationAssertion = expect(creation).rejects.toThrow(
-      "Runtime manager is disposing",
-    );
+    const creationAssertion = expect(creation).rejects.toThrow("Runtime manager is disposing");
     await Promise.resolve();
     expect(upsert).toHaveBeenCalledTimes(1);
 
@@ -186,9 +165,9 @@ describe("runtime manager lifecycle", () => {
     pendingWorkspace.resolve(workspace);
 
     await Promise.all([creationAssertion, firstDispose]);
-    await expect(
-      manager.getOrCreate(workspace.userId, workspace.appId),
-    ).rejects.toThrow("Runtime manager is disposing");
+    await expect(manager.getOrCreate(workspace.userId, workspace.appId)).rejects.toThrow(
+      "Runtime manager is disposing",
+    );
   });
 });
 
@@ -209,17 +188,14 @@ describe("agent store transactions", () => {
         }),
       },
     };
-    const transaction = vi.fn(
-      (callback: (client: typeof transactionClient) => Promise<unknown>) =>
-        callback(transactionClient),
+    const transaction = vi.fn((callback: (client: typeof transactionClient) => Promise<unknown>) =>
+      callback(transactionClient),
     );
     const stores = createAgentStores({
       $transaction: transaction,
     } as unknown as PrismaDatabaseClient);
 
-    await expect(
-      stores.sessions.createAndSetCurrent(workspace.id),
-    ).resolves.toBe(session);
+    await expect(stores.sessions.createAndSetCurrent(workspace.id)).resolves.toBe(session);
     expect(transactionClient.agentSession.create).toHaveBeenCalledWith({
       data: { status: "IDLE", workspaceId: workspace.id },
     });
@@ -255,9 +231,8 @@ describe("agent store transactions", () => {
         }),
       },
     };
-    const transaction = vi.fn(
-      (callback: (client: typeof transactionClient) => Promise<unknown>) =>
-        callback(transactionClient),
+    const transaction = vi.fn((callback: (client: typeof transactionClient) => Promise<unknown>) =>
+      callback(transactionClient),
     );
     const stores = createAgentStores({
       $transaction: transaction,
@@ -315,12 +290,8 @@ describe("AgentRuntime concurrency", () => {
 
     created.resolve(session);
     await Promise.all([firstReady, secondReady]);
-    expect(firstSend).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: session.id }),
-    );
-    expect(secondSend).toHaveBeenCalledWith(
-      expect.objectContaining({ sessionId: session.id }),
-    );
+    expect(firstSend).toHaveBeenCalledWith(expect.objectContaining({ sessionId: session.id }));
+    expect(secondSend).toHaveBeenCalledWith(expect.objectContaining({ sessionId: session.id }));
 
     await runtime.dispose();
   });
@@ -391,14 +362,12 @@ describe("interaction broker consistency", () => {
       turnId: null,
     });
 
-    await expect(
-      broker.resolvePermission(request.interactionId, "allow"),
-    ).rejects.toThrow("database unavailable");
+    await expect(broker.resolvePermission(request.interactionId, "allow")).rejects.toThrow(
+      "database unavailable",
+    );
     expect(broker.hasPending()).toBe(true);
 
-    await expect(
-      broker.resolvePermission(request.interactionId, "allow"),
-    ).resolves.toBe(true);
+    await expect(broker.resolvePermission(request.interactionId, "allow")).resolves.toBe(true);
     await expect(request.decision).resolves.toBe("allow");
     expect(broker.hasPending()).toBe(false);
   });
@@ -481,9 +450,7 @@ describe("interaction broker consistency", () => {
     expect(cancelPending).toHaveBeenCalledWith("session-a");
     expect(broker.hasPending()).toBe(true);
 
-    await expect(
-      broker.resolvePermission(second.interactionId, "allow"),
-    ).resolves.toBe(true);
+    await expect(broker.resolvePermission(second.interactionId, "allow")).resolves.toBe(true);
     await expect(second.decision).resolves.toBe("allow");
     expect(broker.hasPending()).toBe(false);
   });
@@ -565,16 +532,12 @@ describe("phase 6 runtime recovery", () => {
     const staleSession = { ...session, status: "WAITING" as const };
     const replayWorkspace = { ...workspace, currentSessionId: staleSession.id };
     const cancelPending = vi.fn().mockResolvedValue({ count: 1 });
-    const updateStatus = vi
-      .fn()
-      .mockResolvedValue({ ...staleSession, status: "IDLE" });
+    const updateStatus = vi.fn().mockResolvedValue({ ...staleSession, status: "IDLE" });
     const stores = {
       interactions: {
         answer: vi.fn().mockResolvedValue({}),
         cancelPending,
-        create: vi
-          .fn()
-          .mockResolvedValue({ id: "33333333-3333-4333-8333-333333333333" }),
+        create: vi.fn().mockResolvedValue({ id: "33333333-3333-4333-8333-333333333333" }),
       },
       sessions: {
         findById: vi.fn().mockResolvedValue(staleSession),
@@ -607,9 +570,7 @@ describe("phase 6 runtime recovery", () => {
       turnId: null,
     });
     expect(broker.snapshot(staleSession.id)).toHaveLength(1);
-    await expect(
-      broker.resolvePermission(live.interactionId, "allow"),
-    ).resolves.toBe(true);
+    await expect(broker.resolvePermission(live.interactionId, "allow")).resolves.toBe(true);
     await expect(live.decision).resolves.toBe("allow");
     await runtime.dispose();
   });
@@ -630,18 +591,10 @@ describe("phase 6 runtime recovery", () => {
       turnId: null,
     }));
     const listAfter = vi.fn(
-      (
-        _sessionId: string,
-        after: bigint,
-        highWatermark: bigint,
-        limit: number,
-      ) =>
+      (_sessionId: string, after: bigint, highWatermark: bigint, limit: number) =>
         Promise.resolve(
           events
-            .filter(
-              (event) =>
-                event.sequence > after && event.sequence <= highWatermark,
-            )
+            .filter((event) => event.sequence > after && event.sequence <= highWatermark)
             .slice(0, limit),
         ),
     );
@@ -663,31 +616,11 @@ describe("phase 6 runtime recovery", () => {
     await runtime.sendBacklog(connection(send), 0n);
 
     const batches = send.mock.calls.map(([message]) => message);
-    expect(batches.map((message) => message.events.length)).toEqual([
-      1_000, 1_000, 500,
-    ]);
-    expect(batches.map((message) => message.complete)).toEqual([
-      false,
-      false,
-      true,
-    ]);
-    expect(batches.every((message) => message.highWatermark === "2500")).toBe(
-      true,
-    );
-    expect(listAfter).toHaveBeenNthCalledWith(
-      1,
-      replaySession.id,
-      0n,
-      2_500n,
-      1_000,
-    );
-    expect(listAfter).toHaveBeenNthCalledWith(
-      3,
-      replaySession.id,
-      2_000n,
-      2_500n,
-      1_000,
-    );
+    expect(batches.map((message) => message.events.length)).toEqual([1_000, 1_000, 500]);
+    expect(batches.map((message) => message.complete)).toEqual([false, false, true]);
+    expect(batches.every((message) => message.highWatermark === "2500")).toBe(true);
+    expect(listAfter).toHaveBeenNthCalledWith(1, replaySession.id, 0n, 2_500n, 1_000);
+    expect(listAfter).toHaveBeenNthCalledWith(3, replaySession.id, 2_000n, 2_500n, 1_000);
     await runtime.dispose();
   });
 
@@ -697,9 +630,7 @@ describe("phase 6 runtime recovery", () => {
       interactions: {
         answer: vi.fn().mockResolvedValue({}),
         cancelPending: vi.fn().mockResolvedValue({ count: 0 }),
-        create: vi
-          .fn()
-          .mockResolvedValue({ id: "33333333-3333-4333-8333-333333333333" }),
+        create: vi.fn().mockResolvedValue({ id: "33333333-3333-4333-8333-333333333333" }),
       },
       sessions: { findById: vi.fn().mockResolvedValue(session) },
     } as unknown as AgentStores;
@@ -728,9 +659,7 @@ describe("phase 6 runtime recovery", () => {
       turnId: null,
     });
 
-    await expect(
-      runtime.resolvePermission(request.interactionId, "allow"),
-    ).resolves.toBe(true);
+    await expect(runtime.resolvePermission(request.interactionId, "allow")).resolves.toBe(true);
     await expect(request.decision).resolves.toBe("allow");
     const acknowledgement = {
       interactionId: request.interactionId,
@@ -763,9 +692,7 @@ describe("phase 6 runtime recovery", () => {
           {
             role: "user",
             content: "",
-            toolResults: [
-              { toolUseId: "tool-1", content: "ok", isError: false },
-            ],
+            toolResults: [{ toolUseId: "tool-1", content: "ok", isError: false }],
           },
         ],
       }),
@@ -821,9 +748,8 @@ describe("session resume status matrix", () => {
         },
       };
       const stores = createAgentStores({
-        $transaction: vi.fn(
-          (callback: (client: typeof transactionClient) => Promise<unknown>) =>
-            callback(transactionClient),
+        $transaction: vi.fn((callback: (client: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
         ),
       } as unknown as PrismaDatabaseClient);
 
@@ -854,9 +780,8 @@ describe("session resume status matrix", () => {
         agentWorkspace: { update: vi.fn() },
       };
       const stores = createAgentStores({
-        $transaction: vi.fn(
-          (callback: (client: typeof transactionClient) => Promise<unknown>) =>
-            callback(transactionClient),
+        $transaction: vi.fn((callback: (client: typeof transactionClient) => Promise<unknown>) =>
+          callback(transactionClient),
         ),
       } as unknown as PrismaDatabaseClient);
 

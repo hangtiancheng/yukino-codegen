@@ -1,13 +1,6 @@
 import type { ITheme } from "@xterm/xterm";
 import type { MonacoModule } from "./monaco-loader";
 
-/**
- * Catppuccin palette for the web IDE, read from the CSS variables that
- * `@catppuccin/tailwindcss` defines on `:root` (the Frappe flavor). Monaco and
- * xterm cannot use Tailwind classes, so both take their colors from these
- * variables to stay in sync with the stylesheet.
- */
-
 export type CatppuccinPalette = {
   readonly base: string;
   readonly mantle: string;
@@ -76,7 +69,6 @@ export const CATPPUCCIN_THEME_NAME = "catppuccin";
 
 let themeRegistered = false;
 
-/** Define the Catppuccin Monaco theme once; later calls are no-ops. */
 export function registerCatppuccinMonacoTheme(monaco: MonacoModule): void {
   if (themeRegistered) return;
   themeRegistered = true;
@@ -133,7 +125,6 @@ export function registerCatppuccinMonacoTheme(monaco: MonacoModule): void {
   });
 }
 
-/** xterm theme built from the same Catppuccin palette. */
 export function catppuccinXtermTheme(): ITheme {
   const palette = readPalette();
   return {
@@ -161,7 +152,6 @@ export function catppuccinXtermTheme(): ITheme {
   };
 }
 
-/** Palette entry for use in Tailwind-free contexts (panel backgrounds). */
 export function catppuccinBase(): string {
   return readPalette().base;
 }

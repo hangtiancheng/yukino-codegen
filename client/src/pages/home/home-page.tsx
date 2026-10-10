@@ -85,8 +85,8 @@ export function HomePage(): ReactNode {
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-80 max-w-4xl"
           aria-hidden="true"
         >
-          <div className="animate-soft-pulse bg-[radial-gradient(ellipse_38%_52%_at_50%_34%,var(--primary)_0%,transparent_66%)] absolute inset-0 opacity-[0.11]" />
-          <div className="bg-[radial-gradient(ellipse_30%_44%_at_50%_40%,oklch(0.72_0.12_140)_0%,transparent_66%)] absolute inset-0 opacity-[0.08]" />
+          <div className="animate-soft-pulse absolute inset-0 bg-[radial-gradient(ellipse_38%_52%_at_50%_34%,var(--primary)_0%,transparent_66%)] opacity-[0.11]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_30%_44%_at_50%_40%,oklch(0.72_0.12_140)_0%,transparent_66%)] opacity-[0.08]" />
         </div>
         <span className="border-primary/20 bg-primary/8 text-primary shadow-primary/10 mb-5 inline-flex size-12 items-center justify-center rounded-2xl border shadow-md">
           <Sprout className="size-6" aria-hidden="true" />

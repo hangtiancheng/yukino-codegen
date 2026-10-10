@@ -12,18 +12,10 @@ import type {
   AppId,
 } from "@/shared/schemas";
 
-/**
- * Thin workspace-facing adapter over the shared Agent file-sync REST API. It
- * keeps the controller decoupled from the wire schema and maps optimistic-lock
- * conflicts into a shape the editor's diff workflow consumes, fetching the
- * current server contents so the diff editor has both sides.
- */
-
 export type SaveFileInput = {
   readonly path: string;
   readonly contents: string;
   readonly encoding: "utf8" | "base64";
-  /** Server hash of the base revision, or null when creating a new file. */
   readonly expectedHash: string | null;
 };
 

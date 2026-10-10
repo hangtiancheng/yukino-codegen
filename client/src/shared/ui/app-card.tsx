@@ -22,7 +22,7 @@ export function AppCard({
     <article className="group border-border/80 bg-card shadow-soft hover:border-primary/35 hover:shadow-glow overflow-hidden rounded-xl border transition-[transform,box-shadow,border-color] duration-300 hover:-translate-y-0.5">
       <div className="from-primary/12 via-background to-secondary/70 relative flex h-36 items-center justify-center overflow-hidden bg-linear-to-br">
         <div
-          className="bg-grid-sage absolute inset-0 opacity-60 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,black,transparent)]"
+          className="bg-grid-sage absolute inset-0 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,black,transparent)] opacity-60"
           aria-hidden="true"
         />
         {app.appCover ? (

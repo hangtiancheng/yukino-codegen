@@ -9,11 +9,6 @@ import { sortNodes, type WorkspaceNode } from "./workspace-tree";
 
 const MANIFEST_PATH = "package.json";
 
-/**
- * Walk the live WebContainer filesystem into explorer nodes, skipping ignored
- * directories. This reflects the current working copy (agent output plus any
- * terminal or preview build changes).
- */
 export async function walkContainerTree(
   container: WebContainer,
 ): Promise<readonly WorkspaceNode[]> {
@@ -97,7 +92,6 @@ export type ContainerPathSnapshot =
   | { readonly kind: "directory" }
   | { readonly kind: "missing" };
 
-/** Inspect a watcher path without treating directory read failures as deletes. */
 export async function readContainerPath(
   container: WebContainer,
   path: string,
@@ -168,7 +162,6 @@ export async function containerHasNodeModules(
   return names.includes("node_modules");
 }
 
-/** Hash of the current `package.json`, or `undefined` when it is missing. */
 export async function readManifestHash(
   container: WebContainer,
 ): Promise<string | undefined> {

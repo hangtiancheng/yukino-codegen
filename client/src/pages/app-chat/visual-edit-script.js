@@ -1,47 +1,9 @@
-/**
- * Visual edit overlay script.
- *
- * Injected into the iframe document at runtime. Runs as a plain IIFE (no
- * module system) so it must be fully self-contained. Imported by the parent
- * app as a raw string through Vite's `?raw` suffix.
- */
-
-/**
- * @typedef {Object} Rect
- * @property {number} top
- * @property {number} left
- * @property {number} width
- * @property {number} height
- */
-
-/**
- * @typedef {Object} ElementInfo
- * @property {string} tagName
- * @property {string} id
- * @property {string} className
- * @property {string} textContent
- * @property {string} selector
- * @property {string} pagePath
- * @property {Rect} rect
- */
-
-/**
- * @typedef {{ type: "TOGGLE_EDIT_MODE", editMode: boolean }
- *   | { type: "CLEAR_SELECTION" }
- *   | { type: "CLEAR_ALL_EFFECTS" }} IncomingMessage
- */
-
 (function () {
-  /** @type {boolean} */
   let isEditMode = false;
-  /** @type {HTMLElement | null} */
   let currentHoverElement = null;
-  /** @type {HTMLElement | null} */
   let currentSelectedElement = null;
-  /** @type {boolean} */
   let eventListenersAdded = false;
 
-  /** @returns {void} */
   function injectStyles() {
     if (document.getElementById("edit-mode-styles")) return;
     const style = document.createElement("style");
@@ -86,15 +48,8 @@
     document.head.appendChild(style);
   }
 
-  /**
-   * Build a CSS selector path from the element up to <body>.
-   * @param {HTMLElement} element
-   * @returns {string}
-   */
   function generateSelector(element) {
-    /** @type {string[]} */
     const path = [];
-    /** @type {HTMLElement | null} */
     let current = element;
 
     while (current && current !== document.body) {
@@ -128,11 +83,6 @@
     return path.join(" > ");
   }
 
-  /**
-   * Collect serialisable info about the given element.
-   * @param {HTMLElement} element
-   * @returns {ElementInfo}
-   */
   function getElementInfo(element) {
     const rect = element.getBoundingClientRect();
     const pagePath = window.location.search + window.location.hash || "";
@@ -153,7 +103,6 @@
     };
   }
 
-  /** @returns {void} */
   function clearHoverEffect() {
     if (currentHoverElement) {
       currentHoverElement.classList.remove("edit-hover");
@@ -161,7 +110,6 @@
     }
   }
 
-  /** @returns {void} */
   function clearSelectedEffect() {
     const selected = document.querySelectorAll(".edit-selected");
     for (let i = 0; i < selected.length; i++) {
@@ -170,16 +118,14 @@
     currentSelectedElement = null;
   }
 
-  /** @returns {void} */
   function addEventListeners() {
     if (eventListenersAdded) return;
 
     document.body.addEventListener(
       "mouseover",
-      /** @param {MouseEvent} event */
       function (event) {
         if (!isEditMode) return;
-        const target = /** @type {HTMLElement} */ (event.target);
+        const target = event.target;
         if (target === currentHoverElement || target === currentSelectedElement)
           return;
         if (target === document.body || target === document.documentElement)
@@ -195,14 +141,10 @@
 
     document.body.addEventListener(
       "mouseout",
-      /** @param {MouseEvent} event */
       function (event) {
         if (!isEditMode) return;
-        const target = /** @type {HTMLElement} */ (event.target);
-        if (
-          !event.relatedTarget ||
-          !target.contains(/** @type {Node} */ (event.relatedTarget))
-        ) {
+        const target = event.target;
+        if (!event.relatedTarget || !target.contains(event.relatedTarget)) {
           clearHoverEffect();
         }
       },
@@ -211,13 +153,12 @@
 
     document.body.addEventListener(
       "click",
-      /** @param {MouseEvent} event */
       function (event) {
         if (!isEditMode) return;
         event.preventDefault();
         event.stopPropagation();
 
-        const target = /** @type {HTMLElement} */ (event.target);
+        const target = event.target;
         if (target === document.body || target === document.documentElement)
           return;
         if (target.tagName === "SCRIPT" || target.tagName === "STYLE") return;
@@ -234,9 +175,7 @@
             { type: "ELEMENT_SELECTED", elementInfo: elementInfo },
             "*",
           );
-        } catch (_e) {
-          // Silently handle send failure.
-        }
+        } catch (_e) {}
       },
       true,
     );
@@ -244,7 +183,6 @@
     eventListenersAdded = true;
   }
 
-  /** @returns {void} */
   function showEditTip() {
     if (document.getElementById("edit-tip")) return;
 
@@ -282,42 +220,37 @@
     }, 3000);
   }
 
-  window.addEventListener(
-    "message",
-    /** @param {MessageEvent} event */
-    function (event) {
-      const msg = /** @type {IncomingMessage | undefined} */ (event.data);
-      if (!msg || !msg.type) return;
+  window.addEventListener("message", function (event) {
+    const msg = event.data;
+    if (!msg || !msg.type) return;
 
-      switch (msg.type) {
-        case "TOGGLE_EDIT_MODE":
-          isEditMode = !!msg.editMode;
-          if (isEditMode) {
-            injectStyles();
-            addEventListeners();
-            showEditTip();
-          } else {
-            clearHoverEffect();
-            clearSelectedEffect();
-          }
-          break;
-        case "CLEAR_SELECTION":
-          clearSelectedEffect();
-          break;
-        case "CLEAR_ALL_EFFECTS":
-          isEditMode = false;
+    switch (msg.type) {
+      case "TOGGLE_EDIT_MODE":
+        isEditMode = !!msg.editMode;
+        if (isEditMode) {
+          injectStyles();
+          addEventListeners();
+          showEditTip();
+        } else {
           clearHoverEffect();
           clearSelectedEffect();
-          {
-            const tip = document.getElementById("edit-tip");
-            if (tip) tip.remove();
-          }
-          break;
-      }
-    },
-  );
+        }
+        break;
+      case "CLEAR_SELECTION":
+        clearSelectedEffect();
+        break;
+      case "CLEAR_ALL_EFFECTS":
+        isEditMode = false;
+        clearHoverEffect();
+        clearSelectedEffect();
+        {
+          const tip = document.getElementById("edit-tip");
+          if (tip) tip.remove();
+        }
+        break;
+    }
+  });
 
-  /** @returns {void} */
   function initialize() {
     injectStyles();
     addEventListeners();

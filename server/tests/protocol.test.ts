@@ -4,8 +4,6 @@ import {
   agentServerMessageSchema,
 } from "../src/agent-runtime/protocol.js";
 
-// The client->server message union is `.strict()`, so unknown keys are rejected.
-
 describe("agentClientMessageSchema - hello", () => {
   it("accepts a minimal hello", () => {
     expect(agentClientMessageSchema.safeParse({ type: "hello" }).success).toBe(true);

@@ -31,7 +31,9 @@ export function PageContainer({
               </p>
             ) : null}
           </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {actions ? (
+            <div className="flex items-center gap-2">{actions}</div>
+          ) : null}
         </header>
       ) : null}
       <main className="flex w-full flex-col gap-4">{children}</main>

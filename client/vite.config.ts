@@ -16,8 +16,6 @@ export default defineConfig({
   server: {
     headers: crossOriginIsolationHeaders,
     proxy: {
-      // Dev-only: keep API + agent WebSocket same-origin with the Vite app so
-      // credentialed requests skip cross-origin CORS. Forwarded to the backend.
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true,

@@ -46,11 +46,9 @@ export const toHookVo = (row: AgentHookModel) => ({
   timeoutMs: row.timeoutMs,
 });
 
-/** Maps a DB hook row to the Yukino HookConfig consumed by HookEngine. */
 export const toYukinoHookConfig = (row: AgentHookModel): Config.HookConfig => ({
   id: row.id,
   event: row.event,
   action: { type: "command", command: row.command },
-  ...(row.matcher !== null &&
-    row.matcher.length > 0 && { condition: row.matcher }),
+  ...(row.matcher !== null && row.matcher.length > 0 && { condition: row.matcher }),
 });

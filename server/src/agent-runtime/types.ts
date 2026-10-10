@@ -1,6 +1,5 @@
 import type { AgentServerMessage } from "./protocol.js";
 
-/** A single WebSocket subscriber attached to a workspace runtime. */
 export type AgentConnection = Readonly<{
   id: string;
   userId: bigint;

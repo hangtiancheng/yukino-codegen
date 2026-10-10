@@ -3,9 +3,7 @@ import type { Redis } from "ioredis";
 import type { PrismaDatabaseClient } from "./database/index.js";
 import type { HealthCheck } from "./observability/index.js";
 
-export const createDatabaseHealthCheck = (
-  db: PrismaDatabaseClient,
-): HealthCheck => ({
+export const createDatabaseHealthCheck = (db: PrismaDatabaseClient): HealthCheck => ({
   name: "database",
   probe: async () => {
     try {
@@ -17,9 +15,7 @@ export const createDatabaseHealthCheck = (
   },
 });
 
-export const createRedisHealthCheck = (
-  redisClient: Redis | undefined,
-): HealthCheck => ({
+export const createRedisHealthCheck = (redisClient: Redis | undefined): HealthCheck => ({
   name: "redis",
   probe: async () => {
     if (redisClient === undefined) return "up";
@@ -32,10 +28,7 @@ export const createRedisHealthCheck = (
   },
 });
 
-const withTimeout = async (
-  operation: Promise<unknown>,
-  timeoutMs: number,
-): Promise<void> => {
+const withTimeout = async (operation: Promise<unknown>, timeoutMs: number): Promise<void> => {
   let timeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeout = setTimeout(

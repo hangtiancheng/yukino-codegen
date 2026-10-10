@@ -1,12 +1,3 @@
-/**
- * Minimal ANSI terminal renderer for install/dev-server logs. npm and Vite
- * emit SGR colour codes together with cursor and erase control sequences: a
- * progress spinner rewrites the same line using carriage returns or the CSI
- * `G`/`K` codes. We model a per-line cell buffer so those rewrites collapse to
- * their final text, then merge neighbouring cells that share a style into spans
- * for rendering.
- */
-
 type AnsiStyle = {
   readonly color: string | undefined;
   readonly bold: boolean;
@@ -24,8 +15,6 @@ type Cell = { readonly char: string; readonly style: AnsiStyle };
 const RESET: AnsiStyle = { color: undefined, bold: false };
 const BLANK: Cell = { char: " ", style: RESET };
 
-// Tailwind text colours for the standard and bright foreground palette. The
-// tones read on both the light and dark preview panel backgrounds.
 const SGR_COLORS: Readonly<Record<number, string>> = {
   30: "text-neutral-500",
   31: "text-red-600",
@@ -87,7 +76,6 @@ function cellsToSpans(cells: readonly Cell[]): AnsiSpan[] {
   return spans;
 }
 
-/** Parse an ANSI string into styled lines, collapsing in-place line rewrites. */
 export function parseAnsiLines(input: string): AnsiLine[] {
   const lines: Cell[][] = [];
   let line: Cell[] = [];

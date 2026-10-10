@@ -30,7 +30,7 @@ export function GlobalHeader(): ReactNode {
   };
 
   return (
-    <header className="border-border/70 bg-background/80 sticky top-0 z-30 border-b backdrop-blur-xl supports-backdrop-filter:bg-background/70">
+    <header className="border-border/70 bg-background/80 supports-backdrop-filter:bg-background/70 sticky top-0 z-30 border-b backdrop-blur-xl">
       <div className="mx-auto flex h-13 w-full max-w-6xl items-center justify-between gap-4 px-4 md:px-6">
         <button
           type="button"
@@ -38,12 +38,11 @@ export function GlobalHeader(): ReactNode {
           className="group flex items-center gap-2.5"
           aria-label="Yukino Codegen home"
         >
-          <span className="from-primary to-primary/70 shadow-primary/25 grid size-8 shrink-0 place-items-center rounded-lg bg-linear-to-br shadow-md transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-105">
+          <span className="from-primary to-primary/70 shadow-primary/25 grid size-8 shrink-0 place-items-center rounded-lg bg-linear-to-br shadow-md transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-6">
             <Sprout className="size-4.5 text-white" aria-hidden="true" />
           </span>
           <span className="text-foreground text-[15px] font-bold tracking-tight">
-            Yukino{" "}
-            <span className="text-primary font-semibold">Codegen</span>
+            Yukino <span className="text-primary font-semibold">Codegen</span>
           </span>
         </button>
         <nav className="hidden items-center gap-0.5 md:flex">

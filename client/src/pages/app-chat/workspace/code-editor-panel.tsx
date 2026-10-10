@@ -33,15 +33,9 @@ function reportWorkspaceError(operation: Promise<void>): void {
 }
 
 export type CodeEditorPanelProps = {
-  /** Whether the Code tab is currently visible, used to trigger relayout. */
   readonly active: boolean;
 };
 
-/**
- * Monaco-backed editor with an open-file tab strip. Monaco itself is imported
- * lazily on first mount and then stays resident. Conflicting files switch to a
- * diff editor with Accept Agent / Keep Local resolution.
- */
 export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
   const workspace = useWorkspace();
   const hostRef = useRef<HTMLDivElement>(null);

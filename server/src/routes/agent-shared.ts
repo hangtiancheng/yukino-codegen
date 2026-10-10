@@ -12,11 +12,6 @@ export type AppAccess = Readonly<{
   writable: boolean;
 }>;
 
-/**
- * Resolves the authenticated user, the target app, and whether the caller may
- * write. The canonical agent workspace belongs to the app owner; owners and
- * admins are writable, other logged-in users are read-only observers.
- */
 export const resolveAppAccess = async (
   c: Context<AppHonoEnv>,
   appService: AppService,

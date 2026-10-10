@@ -10,8 +10,6 @@ import { decryptStringMap } from "../src/agent-runtime/mcp-crypto.js";
 
 type McpRow = Parameters<typeof toMcpVo>[0];
 
-// Build a realistic AgentMcpServer DB row. Only the fields toMcpVo reads matter;
-// the object is cast to the Prisma model type (erased at runtime under vitest).
 const makeRow = (overrides: Partial<Record<keyof McpRow, unknown>> = {}): McpRow =>
   ({
     id: "42",
@@ -116,7 +114,6 @@ describe("mcpServerCreateSchema", () => {
   });
 
   it("rejects wrong transport/field combinations", () => {
-    // stdio with only a url (no command)
     expect(
       mcpServerCreateSchema.safeParse({
         name: "srv",
@@ -124,7 +121,6 @@ describe("mcpServerCreateSchema", () => {
         url: "https://x.com",
       }).success,
     ).toBe(false);
-    // http with only a command (no url)
     expect(
       mcpServerCreateSchema.safeParse({
         name: "srv",
@@ -179,7 +175,6 @@ describe("toMcpCreateData", () => {
     expect(data.command).toBeNull();
     expect(data.args).toBeNull();
     expect(data.enabled).toBe(false);
-    // Secrets are stored encrypted, not in the clear, and decrypt back.
     expect(typeof data.encryptedHeaders).toBe("string");
     expect(data.encryptedHeaders).not.toContain("Bearer xyz");
     expect(decryptStringMap(data.encryptedHeaders ?? null)).toEqual({

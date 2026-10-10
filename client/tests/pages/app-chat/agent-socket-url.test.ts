@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AppId } from "@/shared/schemas";
 
-/**
- * buildAgentSocketUrl derives its base from getApiBaseUrl(). We mock that single
- * dependency so every protocol branch is exercised deterministically without
- * depending on import.meta.env. The assertions below check the REAL transform
- * output of buildAgentSocketUrl, not the mock.
- */
 const config = vi.hoisted(() => ({ baseUrl: "http://localhost:3000/api" }));
 
 vi.mock("@/shared/config", () => ({

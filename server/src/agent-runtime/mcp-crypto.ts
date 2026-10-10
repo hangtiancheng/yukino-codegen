@@ -23,11 +23,6 @@ const resolveKey = (): Buffer => {
   return decoded;
 };
 
-/**
- * Encrypts a UTF-8 plaintext with AES-256-GCM. The output packs
- * iv || authTag || ciphertext and is base64-encoded for storage. Secrets are
- * never logged; callers persist the returned opaque string only.
- */
 export const encryptSecret = (plaintext: string): string => {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(ALGORITHM, resolveKey(), iv);
@@ -63,7 +58,6 @@ export const decryptStringMap = (packed: string | null): StringMap | undefined =
   return parsed as StringMap;
 };
 
-/** Constant-time comparison helper for optional secret revalidation flows. */
 export const secretsEqual = (left: string, right: string): boolean => {
   const leftBuffer = Buffer.from(left, "utf8");
   const rightBuffer = Buffer.from(right, "utf8");

@@ -20,26 +20,10 @@ export type TeamTaskVo = Readonly<{
   assignee: string;
 }>;
 
-const TEAM_MODES = new Set(["in-process", "tmux", "iterm"]);
-
-const toMode = (backendType: string | undefined): string =>
-  backendType !== undefined && TEAM_MODES.has(backendType)
-    ? backendType
-    : "in-process";
-
-/**
- * Read-only projection of the persisted teams for capability endpoints.
- *
- * Teams live on disk under `~/.yukino/teams/<slug>/config.json` and are written
- * through on every membership change, so the team files — not a TeamManager
- * instance — are the source of truth here: `TeamManager.list()` only returns
- * teams cached in memory, which is always empty for a manager constructed
- * per-request.
- */
-export const listTeams = (): TeamVo[] => {
+export const listTeams = (workDir: string): TeamVo[] => {
   const result: TeamVo[] = [];
-  for (const dirName of Teams.TeamFile.listTeamNames()) {
-    const teamFile = Teams.TeamFile.readTeamFile(dirName);
+  for (const dirName of Teams.TeamFile.listTeamNames(workDir)) {
+    const teamFile = Teams.TeamFile.readTeamFile(workDir, dirName);
     if (teamFile === null) continue;
     result.push({
       memberCount: teamFile.members.length,
@@ -48,10 +32,7 @@ export const listTeams = (): TeamVo[] => {
         name: member.name,
         ...(member.agentType !== undefined && { agentType: member.agentType }),
       })),
-      mode: toMode(
-        teamFile.members.find((member) => member.backendType !== undefined)
-          ?.backendType,
-      ),
+      mode: "in-process",
       name: teamFile.name,
       ...(teamFile.description !== undefined && {
         description: teamFile.description,
@@ -61,15 +42,14 @@ export const listTeams = (): TeamVo[] => {
   return result;
 };
 
-/** Lists a team's shared task board; the store re-reads tasks.json on access. */
-export const listTeamTasks = (teamName: string): TeamTaskVo[] => {
+export const listTeamTasks = (workDir: string, teamName: string): TeamTaskVo[] => {
   const store = new Teams.SharedTask.SharedTaskStore(
-    join(Teams.TeamFile.teamDir(teamName), "tasks.json"),
+    join(Teams.TeamFile.teamDir(workDir, teamName), "tasks.json"),
   );
   return store.listTasks().map((task) => ({
-    assignee: task.assignee,
+    assignee: task.owner ?? "",
     id: task.id,
     status: task.status,
-    title: task.title,
+    title: task.subject,
   }));
 };

@@ -67,14 +67,10 @@ export const mcpServerUpdateSchema = z
 export type McpServerCreateInput = z.infer<typeof mcpServerCreateSchema>;
 export type McpServerUpdateInput = z.infer<typeof mcpServerUpdateSchema>;
 
-const dbTransport = (
-  transport: z.infer<typeof mcpTransportSchema>,
-): AgentMcpTransport =>
+const dbTransport = (transport: z.infer<typeof mcpTransportSchema>): AgentMcpTransport =>
   transport === "stdio" ? "STDIO" : transport === "http" ? "HTTP" : "SSE";
 
-const wireTransport = (
-  transport: AgentMcpServerModel["transport"],
-): "stdio" | "http" | "sse" =>
+const wireTransport = (transport: AgentMcpServerModel["transport"]): "stdio" | "http" | "sse" =>
   transport === "STDIO" ? "stdio" : transport === "HTTP" ? "http" : "sse";
 
 export const toMcpCreateData = (
@@ -92,9 +88,7 @@ export const toMcpCreateData = (
   workspaceId,
 });
 
-export const toMcpUpdateData = (
-  input: McpServerUpdateInput,
-): UpdateMcpInput => ({
+export const toMcpUpdateData = (input: McpServerUpdateInput): UpdateMcpInput => ({
   ...(input.name !== undefined && { name: input.name }),
   ...(input.transport !== undefined && {
     transport: dbTransport(input.transport),
@@ -103,8 +97,7 @@ export const toMcpUpdateData = (
   ...(input.args !== undefined && { args: input.args }),
   ...(input.url !== undefined && { url: input.url }),
   ...(input.headers !== undefined && {
-    encryptedHeaders:
-      input.headers === null ? null : encryptStringMap(input.headers),
+    encryptedHeaders: input.headers === null ? null : encryptStringMap(input.headers),
   }),
   ...(input.env !== undefined && {
     encryptedEnv: input.env === null ? null : encryptStringMap(input.env),
@@ -112,7 +105,6 @@ export const toMcpUpdateData = (
   ...(input.enabled !== undefined && { enabled: input.enabled }),
 });
 
-/** Redacted view of an MCP server safe to return to clients (no secrets). */
 export const toMcpVo = (row: AgentMcpServerModel) => ({
   id: row.id,
   name: row.name,
@@ -128,10 +120,7 @@ export const toMcpVo = (row: AgentMcpServerModel) => ({
   lastCheckedTime: row.lastCheckedTime,
 });
 
-/** Decrypts one DB row into the Yukino MCPServerConfig used to connect. */
-export const toYukinoMcpConfig = (
-  row: AgentMcpServerModel,
-): Config.MCPServerConfig => ({
+export const toYukinoMcpConfig = (row: AgentMcpServerModel): Config.MCPServerConfig => ({
   name: row.name,
   transport: wireTransport(row.transport),
   ...(row.command !== null && { command: row.command }),

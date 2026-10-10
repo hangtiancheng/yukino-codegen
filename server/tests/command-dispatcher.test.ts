@@ -1,6 +1,3 @@
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   buildCommandCandidates,
@@ -64,8 +61,7 @@ describe("isSkillCommand", () => {
 
 describe("buildCommandCandidates", () => {
   it("returns default-registry candidates shaped {name,description,aliases,type}", () => {
-    const workDir = mkdtempSync(join(tmpdir(), "yukino-cmd-"));
-    const candidates = buildCommandCandidates(workDir);
+    const candidates = buildCommandCandidates();
     expect(candidates.length).toBeGreaterThan(0);
     for (const candidate of candidates) {
       expect(typeof candidate.name).toBe("string");
@@ -74,7 +70,6 @@ describe("buildCommandCandidates", () => {
       expect(Array.isArray(candidate.aliases)).toBe(true);
       expect(typeof candidate.type).toBe("string");
     }
-    // The default registry always registers a "help" command.
     expect(candidates.some((c) => c.name === "help")).toBe(true);
   });
 });

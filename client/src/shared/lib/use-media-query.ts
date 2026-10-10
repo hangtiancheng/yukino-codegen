@@ -1,10 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-/**
- * Subscribe to a CSS media query. Used to pick a layout that CSS alone cannot
- * express, such as the chat workspace splitting horizontally on wide screens
- * and stacking vertically on phones.
- */
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
     (onChange) => {

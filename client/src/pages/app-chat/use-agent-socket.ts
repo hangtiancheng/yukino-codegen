@@ -23,7 +23,6 @@ const heartbeatAckTimeoutMs = 10_000;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Normalizes an opaque protocol payload into a JSON-safe value. */
 const toJsonValue = (value: unknown): JsonValue => {
   if (
     value === null ||
@@ -68,10 +67,6 @@ const toQuestion = (question: WireQuestion): AgentQuestion => ({
   })),
   multiSelect: question.multiSelect,
 });
-
-// ---------------------------------------------------------------------------
-// Client -> server messages.
-// ---------------------------------------------------------------------------
 
 export type AgentSelectedElement = Record<string, unknown>;
 

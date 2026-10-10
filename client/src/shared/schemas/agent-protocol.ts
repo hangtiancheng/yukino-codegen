@@ -5,25 +5,8 @@ import {
   positiveIntSchema,
 } from "./primitives";
 
-/**
- * Runtime boundary schemas for the bidirectional Agent workspace.
- *
- * These mirror the server WebSocket protocol and the capability/file REST
- * contracts. Every value that crosses the network is validated with zod so the
- * client never trusts an unverified shape.
- */
-
-// ---------------------------------------------------------------------------
-// Shared primitives
-// ---------------------------------------------------------------------------
-
-/**
- * Transcript ordering counter. The server stores it as a BigInt and serializes
- * it to a decimal string so precision is never lost in JSON.
- */
 export const agentSequenceSchema = z.string();
 
-/** Branded identifiers backed by UUID columns on the server. */
 export const agentSessionIdSchema = z.string().uuid().brand<"AgentSessionId">();
 export type AgentSessionId = z.infer<typeof agentSessionIdSchema>;
 
@@ -45,14 +28,9 @@ export type AgentMcpServerId = z.infer<typeof agentMcpServerIdSchema>;
 export const agentHookIdSchema = z.string().uuid().brand<"AgentHookId">();
 export type AgentHookId = z.infer<typeof agentHookIdSchema>;
 
-/** Task identifiers are not always UUIDs (yukino uses short hex ids). */
 export const agentTaskIdSchema = z.string().min(1).brand<"AgentTaskId">();
 export type AgentTaskId = z.infer<typeof agentTaskIdSchema>;
 
-/**
- * JSON-safe payload preserved verbatim for persisted transcript events and
- * opaque tool arguments/results.
- */
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -67,16 +45,8 @@ export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ]),
 );
 
-/**
- * Backend Prisma enums serialize as SCREAMING_SNAKE_CASE. Normalize to the
- * canonical lower-case protocol values before validating.
- */
 const lowerCasePreprocess = (value: unknown): unknown =>
   typeof value === "string" ? value.toLowerCase() : value;
-
-// ---------------------------------------------------------------------------
-// Runtime status & mode enums
-// ---------------------------------------------------------------------------
 
 export const agentRuntimeStatusSchema = z.preprocess(
   lowerCasePreprocess,
@@ -140,10 +110,6 @@ export const agentTaskStatusSchema = z.preprocess(
 );
 export type AgentTaskStatus = z.infer<typeof agentTaskStatusSchema>;
 
-// ---------------------------------------------------------------------------
-// Capabilities, permissions & questions
-// ---------------------------------------------------------------------------
-
 export const agentCapabilitiesSchema = z.object({
   canRun: z.boolean(),
   canManage: z.boolean(),
@@ -151,7 +117,6 @@ export const agentCapabilitiesSchema = z.object({
 });
 export type AgentCapabilities = z.infer<typeof agentCapabilitiesSchema>;
 
-/** Client decision for a blocking permission request. */
 export const agentPermissionDecisionSchema = z.enum([
   "allow",
   "deny",
@@ -184,10 +149,6 @@ export const agentQuestionAnswerSchema = z.object({
 });
 export type AgentQuestionAnswer = z.infer<typeof agentQuestionAnswerSchema>;
 
-// ---------------------------------------------------------------------------
-// Commands
-// ---------------------------------------------------------------------------
-
 export const agentCommandSourceSchema = z.enum(["builtin", "user", "skill"]);
 export type AgentCommandSource = z.infer<typeof agentCommandSourceSchema>;
 
@@ -207,10 +168,6 @@ export const agentCommandSchema = z.object({
   argumentHint: z.string().optional(),
 });
 export type AgentCommand = z.infer<typeof agentCommandSchema>;
-
-// ---------------------------------------------------------------------------
-// Token usage & file change notifications
-// ---------------------------------------------------------------------------
 
 export const agentUsageSchema = z.object({
   inputTokens: nonNegativeIntSchema.optional(),
@@ -238,10 +195,6 @@ export const agentFileChangeSchema = z.object({
 });
 export type AgentFileChange = z.infer<typeof agentFileChangeSchema>;
 
-// ---------------------------------------------------------------------------
-// MCP entities (masked secrets)
-// ---------------------------------------------------------------------------
-
 export const agentMcpTransportSchema = z.preprocess(
   lowerCasePreprocess,
   z.enum(["stdio", "http", "sse"]),
@@ -254,7 +207,6 @@ export const agentMcpStatusSchema = z.preprocess(
 );
 export type AgentMcpStatus = z.infer<typeof agentMcpStatusSchema>;
 
-/** A secret key is reported only by name; the value is never returned. */
 export const agentMaskedSecretSchema = z.object({
   key: z.string().min(1),
   hasValue: z.boolean(),
@@ -278,10 +230,6 @@ export const agentMcpServerSchema = z.object({
 });
 export type AgentMcpServer = z.infer<typeof agentMcpServerSchema>;
 
-/**
- * Secret mutation on write: keep the stored value, replace it, or remove it.
- * The plaintext value is only ever sent from client to server, never back.
- */
 export const agentMcpSecretMutationSchema = z
   .object({
     key: z.string().min(1),
@@ -299,10 +247,6 @@ export type AgentMcpSecretMutation = z.infer<
 const agentMcpNameSchema = z.string().min(1).max(128);
 const agentMcpUrlSchema = z.string().url().max(2048);
 
-/**
- * Create request. `command` (stdio) and `url` (http/sse) are mutually exclusive
- * by construction because the union is discriminated on transport.
- */
 export const agentMcpCreateRequestSchema = z.discriminatedUnion("transport", [
   z.object({
     transport: z.literal("stdio"),
@@ -349,10 +293,6 @@ export const agentMcpTestResultSchema = z.object({
 });
 export type AgentMcpTestResult = z.infer<typeof agentMcpTestResultSchema>;
 
-// ---------------------------------------------------------------------------
-// Skills
-// ---------------------------------------------------------------------------
-
 export const agentSkillSourceSchema = z.preprocess(
   lowerCasePreprocess,
   z.enum(["builtin", "project", "user", "plugin"]),
@@ -376,10 +316,6 @@ export const agentSkillInstallRequestSchema = z.object({
 export type AgentSkillInstallRequest = z.infer<
   typeof agentSkillInstallRequestSchema
 >;
-
-// ---------------------------------------------------------------------------
-// Hooks
-// ---------------------------------------------------------------------------
 
 export const agentHookSchema = z.object({
   id: agentHookIdSchema,
@@ -415,10 +351,6 @@ export type AgentHookUpdateRequest = z.infer<
   typeof agentHookUpdateRequestSchema
 >;
 
-// ---------------------------------------------------------------------------
-// Memory
-// ---------------------------------------------------------------------------
-
 export const agentMemoryScopeSchema = z.preprocess(
   lowerCasePreprocess,
   z.enum(["global", "project", "session"]),
@@ -446,17 +378,12 @@ export const agentMemorySchema = z.object({
 });
 export type AgentMemory = z.infer<typeof agentMemorySchema>;
 
-/** DELETE clears everything when `id` is omitted, or one entry when present. */
 export const agentMemoryDeleteRequestSchema = z.object({
   id: z.string().min(1).optional(),
 });
 export type AgentMemoryDeleteRequest = z.infer<
   typeof agentMemoryDeleteRequestSchema
 >;
-
-// ---------------------------------------------------------------------------
-// Sessions
-// ---------------------------------------------------------------------------
 
 export const agentSessionSummarySchema = z.object({
   id: agentSessionIdSchema,
@@ -481,10 +408,6 @@ export type AgentSessionResumeResult = z.infer<
   typeof agentSessionResumeResultSchema
 >;
 
-// ---------------------------------------------------------------------------
-// Settings
-// ---------------------------------------------------------------------------
-
 export const agentWorkspaceSettingsSchema = z.object({
   permissionMode: agentPermissionModeSchema,
   sandboxEnabled: z.boolean(),
@@ -506,10 +429,6 @@ export const agentSettingsUpdateRequestSchema = z.object({
 export type AgentSettingsUpdateRequest = z.infer<
   typeof agentSettingsUpdateRequestSchema
 >;
-
-// ---------------------------------------------------------------------------
-// Teams & tasks
-// ---------------------------------------------------------------------------
 
 export const agentTeamMemberSchema = z.object({
   name: z.string().min(1),
@@ -539,10 +458,6 @@ export const agentTaskSchema = z.object({
 });
 export type AgentTask = z.infer<typeof agentTaskSchema>;
 
-// ---------------------------------------------------------------------------
-// Persisted transcript event
-// ---------------------------------------------------------------------------
-
 export const agentTranscriptEventSchema = z.object({
   sessionId: agentSessionIdSchema,
   sequence: agentSequenceSchema,
@@ -552,10 +467,6 @@ export const agentTranscriptEventSchema = z.object({
   createdAt: isoTimestampSchema,
 });
 export type AgentTranscriptEvent = z.infer<typeof agentTranscriptEventSchema>;
-
-// ---------------------------------------------------------------------------
-// Pending interactions (replayed after reconnect)
-// ---------------------------------------------------------------------------
 
 export const agentPendingInteractionSchema = z.discriminatedUnion("type", [
   z.object({
@@ -580,10 +491,6 @@ export const agentPendingInteractionSchema = z.discriminatedUnion("type", [
 export type AgentPendingInteraction = z.infer<
   typeof agentPendingInteractionSchema
 >;
-
-// ---------------------------------------------------------------------------
-// Recursive IDE file tree, mutations & conflicts
-// ---------------------------------------------------------------------------
 
 export const agentFileEncodingSchema = z.enum(["utf8", "base64"]);
 export type AgentFileEncoding = z.infer<typeof agentFileEncodingSchema>;
@@ -633,11 +540,6 @@ const forbiddenPathSegments = new Set([
   "build",
 ]);
 
-/**
- * A relative POSIX path constrained the same way the server enforces it:
- * no absolute paths, backslashes, empty / dot / dot-dot segments, NUL bytes,
- * or forbidden internal directories.
- */
 export const agentFilePathSchema = z
   .string()
   .min(1)
@@ -716,10 +618,6 @@ export const agentFileConflictSchema = z.object({
 });
 export type AgentFileConflict = z.infer<typeof agentFileConflictSchema>;
 
-/**
- * Mutation response. Optimistic-concurrency conflicts are modeled inside the
- * success envelope so callers branch on `status` instead of catching an error.
- */
 export const agentFileMutationResponseSchema = z.discriminatedUnion("status", [
   z.object({
     status: z.literal("ok"),
@@ -733,10 +631,6 @@ export const agentFileMutationResponseSchema = z.discriminatedUnion("status", [
 export type AgentFileMutationResponse = z.infer<
   typeof agentFileMutationResponseSchema
 >;
-
-// ---------------------------------------------------------------------------
-// Bootstrap snapshot (single REST call before the socket opens)
-// ---------------------------------------------------------------------------
 
 export const agentBootstrapSchema = z.object({
   capabilities: agentCapabilitiesSchema,
@@ -755,10 +649,6 @@ export const agentBootstrapSchema = z.object({
   pendingInteractions: z.array(agentPendingInteractionSchema),
 });
 export type AgentBootstrap = z.infer<typeof agentBootstrapSchema>;
-
-// ---------------------------------------------------------------------------
-// Client -> Server WebSocket messages
-// ---------------------------------------------------------------------------
 
 export const agentRuntimeActionSchema = z.enum([
   "rebuild",
@@ -922,10 +812,6 @@ export const agentClientMessageSchema = z.discriminatedUnion("type", [
     .strict(),
 ]);
 export type AgentClientMessage = z.input<typeof agentClientMessageSchema>;
-
-// ---------------------------------------------------------------------------
-// Server -> Client WebSocket messages
-// ---------------------------------------------------------------------------
 
 const agentWireTranscriptEventSchema = z
   .object({

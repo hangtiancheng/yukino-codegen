@@ -11,11 +11,7 @@ import {
   toYukinoMcpConfig,
 } from "../agent-runtime/index.js";
 import type { AppService } from "../app-module/index.js";
-import {
-  createSuccessResponse,
-  ErrorCode,
-  HttpError,
-} from "../common/index.js";
+import { createSuccessResponse, ErrorCode, HttpError } from "../common/index.js";
 import type { AppHonoEnv } from "../session/index.js";
 import { requireWritable, resolveAppAccess } from "./agent-shared.js";
 
@@ -24,12 +20,6 @@ export type AgentMcpRoutesDeps = Readonly<{
   appService: AppService;
 }>;
 
-/**
- * MCP server configuration REST under `/app/:appId/agent/mcp`. Reads are
- * redacted (never return decrypted secrets); mutations invalidate the runtime so
- * the next turn reconnects with the new set; `/test` connects and always
- * disconnects. Owner/admin only.
- */
 export const registerAgentMcpRoutes = (
   router: Hono<AppHonoEnv>,
   deps: AgentMcpRoutesDeps,
@@ -40,46 +30,29 @@ export const registerAgentMcpRoutes = (
     .get("/:appId/agent/mcp", async (c) => {
       const access = await resolveAppAccess(c, appService);
       requireWritable(access);
-      const workspace = await manager.stores.workspaces.getOrCreate(
-        access.ownerId,
-        access.appId,
-      );
+      const workspace = await manager.stores.workspaces.getOrCreate(access.ownerId, access.appId);
       const rows = await manager.stores.mcp.listByWorkspace(workspace.id);
       return c.json(createSuccessResponse(rows.map(toMcpVo)));
     })
-    .post(
-      "/:appId/agent/mcp",
-      zValidator("json", mcpServerCreateSchema),
-      async (c) => {
-        const access = await resolveAppAccess(c, appService);
-        requireWritable(access);
-        const workspace = await manager.stores.workspaces.getOrCreate(
-          access.ownerId,
-          access.appId,
-        );
-        const created = await manager.stores.mcp.create(
-          toMcpCreateData(workspace.id, c.req.valid("json")),
-        );
-        await manager.invalidate(access.ownerId, access.appId);
-        return c.json(createSuccessResponse(toMcpVo(created)));
-      },
-    )
-    .patch(
-      "/:appId/agent/mcp/:mcpId",
-      zValidator("json", mcpServerUpdateSchema),
-      async (c) => {
-        const access = await resolveAppAccess(c, appService);
-        requireWritable(access);
-        const mcpId = c.req.param("mcpId");
-        await requireOwnedMcp(manager, access.ownerId, access.appId, mcpId);
-        const updated = await manager.stores.mcp.update(
-          mcpId,
-          toMcpUpdateData(c.req.valid("json")),
-        );
-        await manager.invalidate(access.ownerId, access.appId);
-        return c.json(createSuccessResponse(toMcpVo(updated)));
-      },
-    )
+    .post("/:appId/agent/mcp", zValidator("json", mcpServerCreateSchema), async (c) => {
+      const access = await resolveAppAccess(c, appService);
+      requireWritable(access);
+      const workspace = await manager.stores.workspaces.getOrCreate(access.ownerId, access.appId);
+      const created = await manager.stores.mcp.create(
+        toMcpCreateData(workspace.id, c.req.valid("json")),
+      );
+      await manager.invalidate(access.ownerId, access.appId);
+      return c.json(createSuccessResponse(toMcpVo(created)));
+    })
+    .patch("/:appId/agent/mcp/:mcpId", zValidator("json", mcpServerUpdateSchema), async (c) => {
+      const access = await resolveAppAccess(c, appService);
+      requireWritable(access);
+      const mcpId = c.req.param("mcpId");
+      await requireOwnedMcp(manager, access.ownerId, access.appId, mcpId);
+      const updated = await manager.stores.mcp.update(mcpId, toMcpUpdateData(c.req.valid("json")));
+      await manager.invalidate(access.ownerId, access.appId);
+      return c.json(createSuccessResponse(toMcpVo(updated)));
+    })
     .delete("/:appId/agent/mcp/:mcpId", async (c) => {
       const access = await resolveAppAccess(c, appService);
       requireWritable(access);
@@ -93,12 +66,7 @@ export const registerAgentMcpRoutes = (
       const access = await resolveAppAccess(c, appService);
       requireWritable(access);
       const mcpId = c.req.param("mcpId");
-      const row = await requireOwnedMcp(
-        manager,
-        access.ownerId,
-        access.appId,
-        mcpId,
-      );
+      const row = await requireOwnedMcp(manager, access.ownerId, access.appId, mcpId);
       const result = await testMcpConnection(toYukinoMcpConfig(row));
       await manager.stores.mcp.updateStatus(
         mcpId,

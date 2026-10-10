@@ -6,25 +6,15 @@ export type McpTestResult = Readonly<{
   error?: string;
 }>;
 
-/**
- * Tests a single MCP server config by connecting through a throwaway
- * MCPManager. Always disconnects in `finally` so the probe leaves no live
- * client. Never logs the config (it carries decrypted secrets).
- */
-export const testMcpConnection = async (
-  config: Config.MCPServerConfig,
-): Promise<McpTestResult> => {
+export const testMcpConnection = async (config: Config.MCPServerConfig): Promise<McpTestResult> => {
   const manager = new MCP.Manager.MCPManager();
   try {
     const result = await manager.connectAll([config]);
     const connected = result.servers.includes(config.name);
-    const failure = result.errors.find(
-      (entry) => entry.serverName === config.name,
-    );
+    const failure = result.errors.find((entry) => entry.serverName === config.name);
     return {
       connected,
-      toolCount: result.tools.filter((tool) => tool.serverName === config.name)
-        .length,
+      toolCount: result.tools.filter((tool) => tool.serverName === config.name).length,
       ...(failure !== undefined && { error: String(failure.error) }),
     };
   } catch (error) {
@@ -34,8 +24,6 @@ export const testMcpConnection = async (
       toolCount: 0,
     };
   } finally {
-    await manager.disconnectAll().catch(() => {
-      /* best-effort cleanup */
-    });
+    await manager.disconnectAll().catch(() => {});
   }
 };

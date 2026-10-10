@@ -16,11 +16,6 @@ const toVo = (meta: Skills.SkillMeta): SkillVo => ({
   ...(meta.forkContext !== undefined && { forkContext: meta.forkContext }),
 });
 
-/**
- * Read/administer the skills available in a workspace directory. Uses the
- * public SkillCatalog + InstallSkillTool; every call re-scans the workDir so it
- * reflects on-disk changes without needing the live agent handle.
- */
 export const createSkillRuntime = (workDir: string) => {
   const catalog = new Skills.Catalog.SkillCatalog();
   catalog.load(workDir);
@@ -39,8 +34,8 @@ export const createSkillRuntime = (workDir: string) => {
     source: string,
     name?: string,
   ): Promise<{ ok: boolean; output: string }> => {
-    const tool = new Skills.InstallTool.InstallSkillTool(workDir, catalog);
-    const ctx: Tools.Types.ToolContext = { workDir };
+    const tool = new Skills.InstallSkillTool.InstallSkillTool(workDir, catalog);
+    const ctx: Tools.Types.ToolContext = { cwd: workDir };
     const result = await tool.execute(ctx, {
       source,
       ...(name !== undefined && { name }),

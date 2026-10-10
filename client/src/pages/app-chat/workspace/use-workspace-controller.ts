@@ -182,8 +182,6 @@ export function useWorkspaceController(
     [],
   );
 
-  // Replace a buffer from an authoritative external source (open, agent sync,
-  // conflict resolution). Bumps revision so the editor resets its model.
   const applyExternalContents = useCallback(
     (
       path: string,
@@ -315,9 +313,7 @@ export function useWorkspaceController(
           }
           try {
             setTree(await walkContainerTree(container));
-          } catch {
-            // File persistence succeeded; the next refresh can rebuild the tree.
-          }
+          } catch {}
         }),
       );
     terminalSyncChainRef.current = task;
@@ -404,10 +400,6 @@ export function useWorkspaceController(
         serverSnapshotRef.current = new Map(snapshot.files);
         setTree(snapshot.nodes);
         setTreeLoading(false);
-        // A freshly created app has no files yet. Booting a WebContainer and
-        // running `npm install` against an empty tree fails with ENOENT, so stay
-        // idle instead. Once the agent scaffolds a package.json, resyncAfterAgent
-        // detects the dependency change and boots the preview.
         if (!snapshot.files.has("package.json")) {
           setStatus("idle");
           return;
@@ -580,9 +572,7 @@ export function useWorkspaceController(
         if (watcherPaused) {
           try {
             startWatcher(await getWebContainer());
-          } catch {
-            // The workspace is unavailable; boot/resync will attach a new watcher.
-          }
+          } catch {}
         }
         setError(
           cause instanceof Error
@@ -606,9 +596,7 @@ export function useWorkspaceController(
       try {
         const container = await getWebContainer();
         setTree(await walkContainerTree(container));
-      } catch {
-        // Ignore: the container is not ready yet.
-      }
+      } catch {}
     })();
   }, []);
 
@@ -647,9 +635,7 @@ export function useWorkspaceController(
             serverText,
             known?.hash ?? null,
           );
-        } catch {
-          // File vanished before it could be opened.
-        }
+        } catch {}
       })();
     },
     [applyExternalContents, putFile],
@@ -1080,9 +1066,7 @@ export function useWorkspaceController(
           for (const chunk of pendingInput) started.write(chunk);
           pendingInput.length = 0;
           surface.onReady?.();
-        } catch {
-          // The shell could not start; the terminal stays passive.
-        }
+        } catch {}
       })();
       return {
         write: (data) => {

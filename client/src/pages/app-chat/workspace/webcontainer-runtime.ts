@@ -47,9 +47,6 @@ class PreviewRunCancelledError extends Error {
   }
 }
 
-// Module-level singletons: the dev server survives component remounts for the
-// same app, and every filesystem mutation is serialized through one queue so
-// mounts, installs, saves, and agent syncs never interleave on the FS.
 let activePreview: ActivePreview | undefined;
 let pendingPreview: PreviewRun | undefined;
 let installedDependencyFingerprint: string | undefined;
@@ -62,11 +59,9 @@ export type PreviewCallbacks = {
   readonly onLog: (chunk: string) => void;
   readonly onReady: (url: string) => void;
   readonly onError: (message: string) => void;
-  /** Aborts the run when the owning component unmounted or a newer run began. */
   readonly isCurrent: () => boolean;
 };
 
-/** Serialize a filesystem task against every other workspace FS operation. */
 export function queueFsTask<T>(task: () => Promise<T>): Promise<T> {
   const run = fsQueue.catch(() => undefined).then(task);
   fsQueue = run.then(
@@ -90,10 +85,6 @@ export function stopPreview(appId: AppId): void {
   if (activePreview?.appId === appId) retireActivePreview(activePreview);
 }
 
-/**
- * Mount the server tree, install dependencies only when package metadata
- * changed (or `node_modules` is missing), and start the Vite dev server.
- */
 export function startPreview(
   appId: AppId,
   tree: FileSystemTree,
@@ -173,7 +164,6 @@ export function clampLog(current: string, chunk: string): string {
   return `${current}${chunk}`.slice(-MAX_LOG_LENGTH);
 }
 
-/** Stable fingerprint of all dependency manifests understood by the runtime. */
 export function dependencyFingerprintFromTree(tree: FileSystemTree): string {
   return DEPENDENCY_FILE_PATHS.map((path) => {
     const contents = fileContentsFromTree(tree, path);
@@ -183,7 +173,6 @@ export function dependencyFingerprintFromTree(tree: FileSystemTree): string {
   }).join("\n");
 }
 
-/** Pure generation/ownership check used by every asynchronous preview phase. */
 export function isPreviewRunCurrent(
   runGeneration: number,
   currentGeneration: number,
@@ -269,9 +258,7 @@ function retireActivePreview(preview: ActivePreview): void {
 function safelyKill(process: WebContainerProcess): void {
   try {
     process.kill();
-  } catch {
-    // The process may already have exited.
-  }
+  } catch {}
 }
 
 async function clearProject(
@@ -292,9 +279,7 @@ async function removeIfPresent(
 ): Promise<void> {
   try {
     await container.fs.rm(path, { force: true });
-  } catch {
-    // Nothing to remove; ignore missing paths.
-  }
+  } catch {}
 }
 
 function streamProcessOutput(
@@ -311,11 +296,6 @@ async function runInstall(
   run: PreviewRun,
   callbacks: PreviewCallbacks,
 ): Promise<void> {
-  // npm has a long-standing optional-dependency bug (npm/cli#4828): a
-  // package-lock.json resolved on another OS/libc omits the WebContainer's
-  // musl-specific optional deps (e.g. @rollup/rollup-linux-x64-musl), so the
-  // install "succeeds" but Vite then fails to start. Drop the lockfile first so
-  // npm resolves the correct binaries for this platform.
   await removeIfPresent(container, "package-lock.json");
   const process = await container.spawn("npm", ["install"]);
   run.process = process;

@@ -1,6 +1,5 @@
 import type { WebContainer } from "@webcontainer/api";
 
-/** A single interactive `jsh` shell bound to one xterm surface. */
 export type ShellSession = {
   readonly write: (data: string) => void;
   readonly resize: (cols: number, rows: number) => void;
@@ -12,11 +11,6 @@ export type ShellDimensions = {
   readonly rows: number;
 };
 
-/**
- * Spawn the WebContainer `jsh` shell with a single stdin writer and stream its
- * output to the provided callback. The returned session owns the one writer and
- * kills the process on {@link ShellSession.dispose | dispose}.
- */
 export async function startShellSession(
   container: WebContainer,
   dimensions: ShellDimensions,
@@ -47,18 +41,14 @@ export async function startShellSession(
       if (disposed) return;
       try {
         process.resize({ cols, rows });
-      } catch {
-        // The process may have exited between a resize observer tick and here.
-      }
+      } catch {}
     },
     dispose: () => {
       if (disposed) return;
       disposed = true;
       try {
         writer.releaseLock();
-      } catch {
-        // Ignore a release failure while a write is in flight.
-      }
+      } catch {}
       process.kill();
     },
   };

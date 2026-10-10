@@ -46,7 +46,7 @@ export function AgentStatusBar({
       <span className="flex items-center gap-1.5">
         <span className="relative flex size-2" aria-hidden="true">
           {connected ? (
-            <span className="bg-emerald-500/40 absolute inline-flex size-full animate-ping rounded-full" />
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500/40" />
           ) : null}
           <span
             className={cn(

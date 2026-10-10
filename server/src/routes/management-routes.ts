@@ -7,10 +7,7 @@ export type ManagementRoutesDeps = Readonly<{
   metricsService: MetricsService;
 }>;
 
-export const createManagementRoutes = ({
-  healthService,
-  metricsService,
-}: ManagementRoutesDeps) =>
+export const createManagementRoutes = ({ healthService, metricsService }: ManagementRoutesDeps) =>
   new Hono<AppHonoEnv>()
     .get("/prometheus", (c) => {
       c.header("Content-Type", metricsService.contentType);

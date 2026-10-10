@@ -33,7 +33,10 @@ export function AppSection({
             <h2 className="text-foreground flex items-center gap-2 text-lg font-bold tracking-tight">
               {title}
               {!loading && apps.length > 0 ? (
-                <Badge variant="secondary" className="font-semibold tabular-nums">
+                <Badge
+                  variant="secondary"
+                  className="font-semibold tabular-nums"
+                >
                   {apps.length}
                 </Badge>
               ) : null}

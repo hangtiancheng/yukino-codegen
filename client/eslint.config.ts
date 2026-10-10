@@ -40,7 +40,6 @@ export default defineConfig([
       "@typescript-eslint/ban-ts-comment": "error",
       "@typescript-eslint/consistent-type-assertions": [
         "error",
-        // Runtime boundaries must use zod validation instead of type assertions.
         { assertionStyle: "never" },
       ],
       "@typescript-eslint/no-explicit-any": "error",
@@ -61,9 +60,6 @@ export default defineConfig([
     },
   },
   {
-    // shadcn/ui primitives are a component library: they intentionally export
-    // variant helpers (buttonVariants, badgeVariants, …) alongside components,
-    // so the fast-refresh "components only" rule does not apply here.
     files: ["src/shared/ui/**/*.{ts,tsx}"],
     rules: {
       "react-refresh/only-export-components": "off",

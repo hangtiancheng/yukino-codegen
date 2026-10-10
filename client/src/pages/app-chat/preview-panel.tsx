@@ -37,7 +37,10 @@ export function PreviewPanel({
     <section className="border-border/80 bg-card shadow-soft flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border">
       <header className="border-border/70 bg-muted/25 flex items-center justify-between gap-3 border-b px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="bg-primary/12 text-primary grid size-6 shrink-0 place-items-center rounded-md" aria-hidden="true">
+          <span
+            className="bg-primary/12 text-primary grid size-6 shrink-0 place-items-center rounded-md"
+            aria-hidden="true"
+          >
             <Eye className="size-3.5" />
           </span>
           <div className="min-w-0">
@@ -143,7 +146,6 @@ function PreviewPlaceholder({
   );
 }
 
-/** Render an install/dev-server log, translating ANSI colour codes to styles. */
 function AnsiLogView({ logs }: { readonly logs: string }): ReactNode {
   const lines = useMemo(() => parseAnsiLines(logs), [logs]);
   return (

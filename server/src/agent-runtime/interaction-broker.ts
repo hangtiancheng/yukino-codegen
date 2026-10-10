@@ -42,16 +42,7 @@ export type YukinoQuestion = Readonly<{
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
-/**
- * Coordinates human-in-the-loop interactions. Each request is persisted as an
- * AgentInteraction row and paired with an in-memory pending promise. Non-bypass
- * flows fail closed: a timeout, cancellation, or disconnect denies permission
- * requests and rejects question requests rather than silently proceeding.
- */
-export const createInteractionBroker = (
-  stores: AgentStores,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
-) => {
+export const createInteractionBroker = (stores: AgentStores, timeoutMs = DEFAULT_TIMEOUT_MS) => {
   const pending = new Map<string, Pending>();
 
   const clear = (id: string): Pending | undefined => {
@@ -117,9 +108,7 @@ export const createInteractionBroker = (
     const answers = new Promise<Record<string, string>>((resolve, reject) => {
       const timer = setTimeout(() => {
         clear(row.id);
-        void stores.interactions
-          .answer(row.id, "EXPIRED", null)
-          .catch(() => undefined);
+        void stores.interactions.answer(row.id, "EXPIRED", null).catch(() => undefined);
         reject(new Error("Question timed out with no response"));
       }, timeoutMs);
       pending.set(row.id, {
@@ -158,9 +147,7 @@ export const createInteractionBroker = (
     const normalized: Record<string, string> = {};
     for (const questionText of entry.questionTexts) {
       const value = answers[questionText];
-      normalized[questionText] = Array.isArray(value)
-        ? value.join(", ")
-        : (value ?? "");
+      normalized[questionText] = Array.isArray(value) ? value.join(", ") : (value ?? "");
     }
     await stores.interactions.answer(interactionId, "ANSWERED", normalized);
     if (pending.get(interactionId) !== entry) return false;
@@ -169,7 +156,6 @@ export const createInteractionBroker = (
     return true;
   };
 
-  /** Fail-closed cancellation for a whole session (abort, disconnect, dispose). */
   const cancelSession = async (sessionId: string): Promise<void> => {
     for (const [id, entry] of [...pending.entries()]) {
       if (entry.sessionId !== sessionId) continue;
@@ -227,7 +213,6 @@ export const createInteractionBroker = (
 
 export type InteractionBroker = ReturnType<typeof createInteractionBroker>;
 
-/** Convenience: turn a Yukino Decision into a permission request payload. */
 export const toPermissionPayload = (
   toolName: string,
   args: Record<string, unknown>,

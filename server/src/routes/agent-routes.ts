@@ -14,10 +14,6 @@ export type AgentRoutesDeps = Readonly<{
   appService: AppService;
 }>;
 
-/**
- * Composes the agent surface mounted under `/app`: the WebSocket transport, MCP
- * config REST, capability REST, and the project file API.
- */
 export const createAgentRoutes = (deps: AgentRoutesDeps) => {
   const router = new Hono<AppHonoEnv>();
   registerAgentWs(router, {

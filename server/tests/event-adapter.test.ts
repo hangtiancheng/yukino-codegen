@@ -2,11 +2,7 @@ import type { Agent } from "@yukino.js/yukino";
 import { describe, expect, it } from "vitest";
 import { createEventAdapter } from "../src/agent-runtime/event-adapter.js";
 
-// Narrow helper so a single mapEvent output can be asserted concisely.
-const first = (
-  adapter: ReturnType<typeof createEventAdapter>,
-  event: Agent.Events.AgentEvent,
-) => {
+const first = (adapter: ReturnType<typeof createEventAdapter>, event: Agent.Events.AgentEvent) => {
   const out = adapter.mapEvent(event);
   expect(out).toHaveLength(1);
   const item = out[0];
@@ -40,9 +36,7 @@ describe("createEventAdapter - stream_text and narration", () => {
 describe("createEventAdapter - thinking", () => {
   it("emits ephemeral agent_status for thinking_text", () => {
     const adapter = createEventAdapter();
-    expect(
-      first(adapter, { type: "thinking_text", text: "pondering" }),
-    ).toEqual({
+    expect(first(adapter, { type: "thinking_text", text: "pondering" })).toEqual({
       persist: false,
       message: {
         type: "agent_status",
@@ -163,10 +157,7 @@ describe("createEventAdapter - tool_result", () => {
 describe("createEventAdapter - usage totals", () => {
   it("persists per-event usage and accumulates totals", () => {
     const adapter = createEventAdapter();
-    const usage = (
-      inputTokens: number,
-      outputTokens: number,
-    ): Agent.Events.AgentEvent => ({
+    const usage = (inputTokens: number, outputTokens: number): Agent.Events.AgentEvent => ({
       type: "usage",
       usage: {
         inputTokens,
@@ -188,9 +179,7 @@ describe("createEventAdapter - usage totals", () => {
 describe("createEventAdapter - outcome", () => {
   it("sets end_turn on loop_complete end_turn", () => {
     const adapter = createEventAdapter();
-    expect(
-      first(adapter, { type: "loop_complete", stopReason: "end_turn" }),
-    ).toEqual({
+    expect(first(adapter, { type: "loop_complete", stopReason: "end_turn" })).toEqual({
       persist: true,
       kind: "loop_complete",
       payload: { stopReason: "end_turn" },
@@ -214,13 +203,11 @@ describe("createEventAdapter - outcome", () => {
 
   it("sets error outcome and records the message on error events", () => {
     const adapter = createEventAdapter();
-    expect(first(adapter, { type: "error", error: new Error("boom") })).toEqual(
-      {
-        persist: true,
-        kind: "error",
-        payload: { message: "boom" },
-      },
-    );
+    expect(first(adapter, { type: "error", error: new Error("boom") })).toEqual({
+      persist: true,
+      kind: "error",
+      payload: { message: "boom" },
+    });
     expect(adapter.outcome()).toBe("error");
     expect(adapter.errorMessage()).toBe("boom");
   });

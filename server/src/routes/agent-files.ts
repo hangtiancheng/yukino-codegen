@@ -41,12 +41,6 @@ const deleteSchema = z.object({
   expectedHash: hashSchema.nullable().optional(),
 });
 
-/**
- * Project file API under `/app/files/:appId`. The GET tree (each file annotated
- * with a sha256) is available to any authenticated observer. Mutations are
- * owner/admin only, run under the same lock as agent turns, and broadcast a
- * files_changed event so connected clients refresh.
- */
 export const registerAgentFileRoutes = (
   router: Hono<AppHonoEnv>,
   deps: AgentFileRoutesDeps,

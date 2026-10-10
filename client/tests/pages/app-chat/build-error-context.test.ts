@@ -13,7 +13,6 @@ describe("buildPreviewFixPrompt", () => {
   it("omits the Stack section when no stack is present", () => {
     const prompt = buildPreviewFixPrompt({ message: "boom" });
     expect(prompt).not.toContain("Stack:");
-    // The prompt ends on the Error line when there is no stack.
     expect(prompt.trimEnd().endsWith("Error: boom")).toBe(true);
   });
 
@@ -23,7 +22,6 @@ describe("buildPreviewFixPrompt", () => {
     expect(prompt).toContain("Error: boom");
     expect(prompt).toContain("Stack:");
     expect(prompt).toContain(stack);
-    // The stack block comes after the error message.
     expect(prompt.indexOf("Stack:")).toBeGreaterThan(
       prompt.indexOf("Error: boom"),
     );

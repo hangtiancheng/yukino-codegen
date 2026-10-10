@@ -8,7 +8,6 @@ import {
 } from "./workspace-paths";
 import type { WorkspaceFileState } from "./workspace-types";
 
-/** A node in the explorer tree. Directories carry their sorted children. */
 export type WorkspaceNode =
   | {
       readonly kind: "file";
@@ -23,19 +22,14 @@ export type WorkspaceNode =
       readonly children: readonly WorkspaceNode[];
     };
 
-/** Server-known transport contents and hash of a single file. */
 export type WorkspaceFileContent = {
   readonly binary: boolean;
   readonly encoding: "utf8" | "base64";
-  /** Original server payload, including base64 data for binary files. */
   readonly contents: string;
-  /** Decoded editor text when the file is not binary. */
   readonly text: string | undefined;
-  /** Server content hash used as the optimistic-locking base revision. */
   readonly hash: string;
 };
 
-/** A full snapshot fetched from the server: structure plus file contents. */
 export type WorkspaceSnapshot = {
   readonly nodes: readonly WorkspaceNode[];
   readonly files: ReadonlyMap<string, WorkspaceFileContent>;
@@ -46,7 +40,6 @@ function base64ToBytes(contents: string): Uint8Array {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-/** Directories first, then files, each alphabetical and case-insensitive. */
 export function sortNodes(
   nodes: readonly WorkspaceNode[],
 ): readonly WorkspaceNode[] {
@@ -58,10 +51,6 @@ export function sortNodes(
   });
 }
 
-/**
- * Convert the server's {@link AgentFileTreeNode} into a WebContainer mount
- * tree. Binary (`base64`) files are decoded to bytes; text files stay strings.
- */
 export function agentTreeToFileSystem(root: AgentFileTreeNode): FileSystemTree {
   if (root.type === "file") return {};
   return buildFileSystem(root.children);
@@ -87,10 +76,6 @@ function buildFileSystem(nodes: readonly AgentFileTreeNode[]): FileSystemTree {
   return result;
 }
 
-/**
- * Build explorer nodes and a content/hash map from the server tree, skipping
- * ignored directories such as `node_modules`.
- */
 export function snapshotFromAgentTree(
   root: AgentFileTreeNode,
 ): WorkspaceSnapshot {
@@ -140,7 +125,6 @@ const DEPENDENCY_FILE_PATHS: readonly string[] = [
   "bun.lockb",
 ];
 
-/** Whether package metadata changed enough to require remounting dependencies. */
 export function dependencyFilesChanged(
   previous: ReadonlyMap<string, WorkspaceFileContent>,
   next: ReadonlyMap<string, WorkspaceFileContent>,
@@ -168,11 +152,6 @@ export function reconcileSavedFile(
 export type MergeResult =
   { readonly clean: true; readonly text: string } | { readonly clean: false };
 
-/**
- * Practical three-way merge. When only one side diverged from the common base
- * it takes that side; identical edits collapse to one; anything else is a
- * conflict that the caller resolves through the diff editor.
- */
 export function threeWayMerge(
   base: string,
   local: string,

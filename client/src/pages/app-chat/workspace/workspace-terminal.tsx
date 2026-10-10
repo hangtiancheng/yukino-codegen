@@ -5,11 +5,6 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { catppuccinXtermTheme } from "./catppuccin-theme";
 import { useWorkspace } from "./workspace-context";
 
-/**
- * Integrated `jsh` terminal. It wires the workspace shell to a single xterm
- * surface, keeps the fit addon in sync through a ResizeObserver, and blocks
- * input while the agent is running so its writes are not disturbed.
- */
 export function WorkspaceTerminal(): ReactNode {
   const workspace = useWorkspace();
   const attachTerminal = workspace.attachTerminal;
@@ -39,9 +34,7 @@ export function WorkspaceTerminal(): ReactNode {
     const safeFit = (): void => {
       try {
         fitAddon.fit();
-      } catch {
-        // The container has no size yet (Code tab hidden).
-      }
+      } catch {}
     };
     safeFit();
 

@@ -163,7 +163,6 @@ describe("hashContents", () => {
   it("produces distinct hashes for distinct input", () => {
     expect(hashContents("a")).not.toBe(hashContents("b"));
     expect(hashContents("hello")).not.toBe(hashContents("hallo"));
-    // Order matters for FNV-1a.
     expect(hashContents("ab")).not.toBe(hashContents("ba"));
   });
 
@@ -177,7 +176,6 @@ describe("hashContents", () => {
       const hash = hashContents(value);
       expect(hash).toMatch(/^[0-9a-f]{8}$/);
     }
-    // FNV-1a offset basis for the empty string.
     expect(hashContents("")).toBe("811c9dc5");
   });
 });

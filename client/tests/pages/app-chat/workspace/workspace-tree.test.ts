@@ -36,7 +36,6 @@ function dirNode(
   return { type: "directory", path, name, children };
 }
 
-/** Narrow a FileSystemTree entry to its file contents. */
 function fileContents(tree: FileSystemTree, name: string): string | Uint8Array {
   const entry = tree[name];
   if (!entry || !("file" in entry) || !("contents" in entry.file)) {
@@ -96,13 +95,11 @@ describe("threeWayMerge", () => {
   });
 
   it("takes the server side when only the server diverged from base", () => {
-    // base === local, so the local side never changed.
     const result = threeWayMerge("base", "base", "server-change");
     expect(result).toEqual({ clean: true, text: "server-change" });
   });
 
   it("takes the local side when only the local side diverged from base", () => {
-    // base === server, so the server never changed.
     const result = threeWayMerge("base", "local-change", "base");
     expect(result).toEqual({ clean: true, text: "local-change" });
   });
@@ -153,7 +150,6 @@ describe("agentTreeToFileSystem", () => {
     const tree = agentTreeToFileSystem(
       dirNode("", "root", [
         fileNode("app.ts", "app.ts", "const x = 1;", "utf8", "h1"),
-        // "aGVsbG8=" is base64 for "hello".
         fileNode("logo.bin", "logo.bin", "aGVsbG8=", "base64", "h2"),
       ]),
     );
@@ -204,13 +200,11 @@ describe("snapshotFromAgentTree", () => {
       ]),
       fileNode("notes.txt", "notes.txt", "hello notes", "utf8", "h2"),
       fileNode("data.bin", "data.bin", "AAAA", "base64", "h3"),
-      // utf8 encoding but a binary extension: treated as binary, text dropped.
       fileNode("logo.png", "logo.png", "not-real-text", "utf8", "h4"),
     ]);
 
     const { nodes, files } = snapshotFromAgentTree(root);
 
-    // node_modules is skipped; directory sorts before files, files alphabetical.
     expect(nodes.map((node) => node.name)).toEqual([
       "src",
       "data.bin",
@@ -232,7 +226,6 @@ describe("snapshotFromAgentTree", () => {
       text: "hello notes",
       hash: "h2",
     });
-    // base64 encoded -> binary, with the transport payload retained.
     expect(files.get("data.bin")).toEqual({
       binary: true,
       encoding: "base64",
@@ -240,7 +233,6 @@ describe("snapshotFromAgentTree", () => {
       text: undefined,
       hash: "h3",
     });
-    // utf8 but binary by extension -> binary, preserving its encoding and payload.
     expect(files.get("logo.png")).toEqual({
       binary: true,
       encoding: "utf8",
@@ -248,7 +240,6 @@ describe("snapshotFromAgentTree", () => {
       text: undefined,
       hash: "h4",
     });
-    // The ignored directory contributed nothing to the file map.
     expect(files.has("node_modules/pkg.js")).toBe(false);
   });
 });

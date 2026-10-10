@@ -11,11 +11,6 @@ export type WorkspaceProviderProps = {
   readonly children: ReactNode;
 };
 
-/**
- * Owns the unified WebContainer workspace controller and exposes it through
- * context. Mount this once around the panel and any left-column consumers that
- * need the selected element, preview error, or resync controls.
- */
 export function WorkspaceProvider({
   appId,
   enabled,

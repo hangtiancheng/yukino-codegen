@@ -10,8 +10,6 @@ import {
 } from "../src/agent-runtime/project-files.js";
 import { ErrorCode, HttpError } from "../src/common/index.js";
 
-// Security-critical path guard. These tests pin the exact allow/deny behavior of
-// the client-supplied path validator that every file-mutation endpoint relies on.
 const BASE = "/tmp/yukino-project";
 const RESOLVED_BASE = resolve(BASE);
 
@@ -23,9 +21,7 @@ describe("validateRelativePath - valid input", () => {
   });
 
   it("resolves a top-level file", () => {
-    expect(validateRelativePath(BASE, "package.json")).toBe(
-      `${RESOLVED_BASE}${sep}package.json`,
-    );
+    expect(validateRelativePath(BASE, "package.json")).toBe(`${RESOLVED_BASE}${sep}package.json`);
   });
 
   it("resolves deeply nested paths", () => {
@@ -41,8 +37,6 @@ describe("validateRelativePath - valid input", () => {
   });
 
   it("matches forbidden names by exact segment, not substring", () => {
-    // "distances", "builder", "my.env.ts" contain forbidden tokens as substrings
-    // but are NOT forbidden segments, so they must be allowed.
     expect(validateRelativePath(BASE, "src/distances.ts")).toBe(
       `${RESOLVED_BASE}${sep}src${sep}distances.ts`,
     );
@@ -52,9 +46,7 @@ describe("validateRelativePath - valid input", () => {
     expect(validateRelativePath(BASE, "config/my.env.ts")).toBe(
       `${RESOLVED_BASE}${sep}config${sep}my.env.ts`,
     );
-    expect(validateRelativePath(BASE, ".gitignore")).toBe(
-      `${RESOLVED_BASE}${sep}.gitignore`,
-    );
+    expect(validateRelativePath(BASE, ".gitignore")).toBe(`${RESOLVED_BASE}${sep}.gitignore`);
   });
 });
 
@@ -87,35 +79,25 @@ describe("validateRelativePath - rejects absolute paths", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(HttpError);
       expect((error as HttpError).code).toBe(ErrorCode.ParamsError);
-      expect((error as HttpError).message).toBe(
-        "Absolute paths are not allowed",
-      );
+      expect((error as HttpError).message).toBe("Absolute paths are not allowed");
     }
   });
 });
 
 describe("validateRelativePath - rejects '.'/'..' and empty segments (traversal)", () => {
-  it.each([
-    "..",
-    "../secret",
-    "a/../b",
-    "a/./b",
-    "./src",
-    "a//b",
-    "src/..",
-    "../../etc/passwd",
-  ])("throws traversal error for %j", (input) => {
-    try {
-      validateRelativePath(BASE, input);
-      throw new Error("expected throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(HttpError);
-      expect((error as HttpError).code).toBe(ErrorCode.ParamsError);
-      expect((error as HttpError).message).toBe(
-        "Path traversal is not allowed",
-      );
-    }
-  });
+  it.each(["..", "../secret", "a/../b", "a/./b", "./src", "a//b", "src/..", "../../etc/passwd"])(
+    "throws traversal error for %j",
+    (input) => {
+      try {
+        validateRelativePath(BASE, input);
+        throw new Error("expected throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpError);
+        expect((error as HttpError).code).toBe(ErrorCode.ParamsError);
+        expect((error as HttpError).message).toBe("Path traversal is not allowed");
+      }
+    },
+  );
 });
 
 describe("validateRelativePath - rejects forbidden segments", () => {
@@ -141,9 +123,7 @@ describe("validateRelativePath - rejects forbidden segments", () => {
       expect(error).toBeInstanceOf(HttpError);
       expect((error as HttpError).code).toBe(ErrorCode.ForbiddenError);
       expect((error as HttpError).statusCode).toBe(403);
-      expect((error as HttpError).message).toContain(
-        "Path segment is not allowed",
-      );
+      expect((error as HttpError).message).toContain("Path segment is not allowed");
     }
   });
 
@@ -152,9 +132,7 @@ describe("validateRelativePath - rejects forbidden segments", () => {
       validateRelativePath(BASE, "src/node_modules/x.js");
       throw new Error("expected throw");
     } catch (error) {
-      expect((error as HttpError).message).toBe(
-        "Path segment is not allowed: node_modules",
-      );
+      expect((error as HttpError).message).toBe("Path segment is not allowed: node_modules");
     }
   });
 });
@@ -166,16 +144,12 @@ describe("validateRelativePath - traversal check precedes forbidden check", () =
       throw new Error("expected throw");
     } catch (error) {
       expect((error as HttpError).code).toBe(ErrorCode.ParamsError);
-      expect((error as HttpError).message).toBe(
-        "Path traversal is not allowed",
-      );
+      expect((error as HttpError).message).toBe("Path traversal is not allowed");
     }
   });
 });
 
-const withProject = async (
-  run: (directory: string) => Promise<void>,
-): Promise<void> => {
+const withProject = async (run: (directory: string) => Promise<void>): Promise<void> => {
   const directory = await mkdtemp(join(tmpdir(), "yukino-project-files-"));
   try {
     await run(directory);
@@ -193,8 +167,7 @@ describe("project file mutation preconditions", () => {
         path: "src/value.txt",
       });
       expect(created.conflict).toBe(false);
-      if (created.conflict || created.hash === undefined)
-        throw new Error("expected saved file");
+      if (created.conflict || created.hash === undefined) throw new Error("expected saved file");
 
       const createConflict = await writeProjectFile(directory, {
         contents: "two",
@@ -222,9 +195,7 @@ describe("project file mutation preconditions", () => {
         path: "src/value.txt",
       });
       expect(updated.conflict).toBe(false);
-      expect(await readFile(join(directory, "src/value.txt"), "utf8")).toBe(
-        "two",
-      );
+      expect(await readFile(join(directory, "src/value.txt"), "utf8")).toBe("two");
     });
   });
 
@@ -251,8 +222,7 @@ describe("project file mutation preconditions", () => {
         expectedHash: null,
         path: "source.txt",
       });
-      if (created.conflict || created.hash === undefined)
-        throw new Error("expected saved file");
+      if (created.conflict || created.hash === undefined) throw new Error("expected saved file");
 
       const renameConflict = await renameProjectEntry(directory, {
         expectedHash: "0".repeat(64),

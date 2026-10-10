@@ -16,10 +16,7 @@ import {
   Utils,
 } from "@yukino.js/yukino";
 import { env } from "../config/index.js";
-import type {
-  AgentPermissionMode,
-  AgentSessionStatus,
-} from "../generated/prisma/enums.js";
+import type { AgentPermissionMode, AgentSessionStatus } from "../generated/prisma/enums.js";
 import type { AgentTranscriptEventModel } from "../generated/prisma/models/AgentTranscriptEvent.js";
 import type { AgentWorkspaceModel } from "../generated/prisma/models/AgentWorkspace.js";
 import type { MetricsService } from "../observability/index.js";
@@ -38,17 +35,10 @@ import {
   toPermissionPayload,
 } from "./interaction-broker.js";
 import { toYukinoMcpConfig } from "./mcp-config.js";
-import type {
-  AgentServerMessage,
-  AgentTranscriptEventMessage,
-} from "./protocol.js";
+import type { AgentServerMessage, AgentTranscriptEventMessage } from "./protocol.js";
 import { buildProviderConfig } from "./provider.js";
 import type { AgentStores } from "./stores.js";
-import type {
-  AgentConnection,
-  PermissionDecision,
-  QuestionAnswers,
-} from "./types.js";
+import type { AgentConnection, PermissionDecision, QuestionAnswers } from "./types.js";
 import { AsyncLock } from "./workspace-lock.js";
 
 const REPLAY_LIMIT = 200;
@@ -57,16 +47,11 @@ const BACKLOG_BATCH_SIZE = 1_000;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isMessageContent = (
-  value: unknown,
-): value is Conversation.Message["content"] =>
-  typeof value === "string" ||
-  (Array.isArray(value) && value.every((item) => isRecord(item)));
+const isMessageContent = (value: unknown): value is Conversation.Message["content"] =>
+  typeof value === "string" || (Array.isArray(value) && value.every((item) => isRecord(item)));
 
 const isThinkingBlock = (value: unknown): value is Conversation.ThinkingBlock =>
-  isRecord(value) &&
-  typeof value.thinking === "string" &&
-  typeof value.signature === "string";
+  isRecord(value) && typeof value.thinking === "string" && typeof value.signature === "string";
 
 const isToolUseBlock = (value: unknown): value is Conversation.ToolUseBlock =>
   isRecord(value) &&
@@ -74,9 +59,7 @@ const isToolUseBlock = (value: unknown): value is Conversation.ToolUseBlock =>
   typeof value.toolName === "string" &&
   isRecord(value.arguments);
 
-const isToolResultBlock = (
-  value: unknown,
-): value is Conversation.ToolResultBlock =>
+const isToolResultBlock = (value: unknown): value is Conversation.ToolResultBlock =>
   isRecord(value) &&
   typeof value.toolUseId === "string" &&
   isMessageContent(value.content) &&
@@ -85,9 +68,7 @@ const isToolResultBlock = (
 const isMessage = (value: unknown): value is Conversation.Message => {
   if (
     !isRecord(value) ||
-    (value.role !== "user" &&
-      value.role !== "assistant" &&
-      value.role !== "system") ||
+    (value.role !== "user" && value.role !== "assistant" && value.role !== "system") ||
     !isMessageContent(value.content) ||
     (value.role !== "user" && typeof value.content !== "string")
   ) {
@@ -95,8 +76,7 @@ const isMessage = (value: unknown): value is Conversation.Message => {
   }
   if (
     value.thinkingBlocks !== undefined &&
-    (!Array.isArray(value.thinkingBlocks) ||
-      !value.thinkingBlocks.every(isThinkingBlock))
+    (!Array.isArray(value.thinkingBlocks) || !value.thinkingBlocks.every(isThinkingBlock))
   ) {
     return false;
   }
@@ -108,40 +88,25 @@ const isMessage = (value: unknown): value is Conversation.Message => {
   }
   return (
     value.toolResults === undefined ||
-    (Array.isArray(value.toolResults) &&
-      value.toolResults.every(isToolResultBlock))
+    (Array.isArray(value.toolResults) && value.toolResults.every(isToolResultBlock))
   );
 };
 
-export const parseSavedConversationMessages = (
-  context: unknown,
-): Conversation.Message[] | null => {
+export const parseSavedConversationMessages = (context: unknown): Conversation.Message[] | null => {
   if (!isRecord(context) || !Array.isArray(context.messages)) return null;
   return context.messages.every(isMessage) ? context.messages : null;
 };
 
 const parseSavedActiveSkills = (value: unknown): string[] =>
-  Array.isArray(value)
-    ? value.filter((name): name is string => typeof name === "string")
-    : [];
+  Array.isArray(value) ? value.filter((name): name is string => typeof name === "string") : [];
 
-/**
- * True for user messages whose content is a `<system-reminder>` wrapper (the
- * long-term-memory injection, MCP instruction announcements, task/hook
- * notifications). These are re-derivable at runtime — the memory injection is
- * re-created on every handle build and MCP instructions are re-announced via
- * syncMcpInstructions — so persisted copies are dropped on rehydrate instead of
- * accumulating one layer per restart.
- */
 const isWrappedSystemReminder = (message: Conversation.Message): boolean =>
   message.role === "user" &&
   typeof message.content === "string" &&
   message.content.startsWith("<system-reminder>") &&
   message.content.endsWith("</system-reminder>");
 
-const toYukinoMode = (
-  mode: AgentPermissionMode,
-): Permissions.PermissionMode => {
+const toYukinoMode = (mode: AgentPermissionMode): Permissions.PermissionMode => {
   switch (mode) {
     case "DEFAULT":
       return "default";
@@ -171,9 +136,7 @@ export type AgentRuntimeDeps = Readonly<{
   metrics: MetricsService;
 }>;
 
-const toEventMessage = (
-  row: AgentTranscriptEventModel,
-): AgentTranscriptEventMessage => ({
+const toEventMessage = (row: AgentTranscriptEventModel): AgentTranscriptEventMessage => ({
   createdAt: row.createTime.toISOString(),
   kind: row.kind,
   payload: row.payload,
@@ -182,13 +145,6 @@ const toEventMessage = (
   ...(row.turnId !== null && { turnId: row.turnId }),
 });
 
-/**
- * A long-lived, per-app agent runtime. One instance owns the Yukino agent stack
- * (via createRemoteAgent), the canonical DB session, the transcript sequence
- * counter, and the set of connected subscribers. Turns are serialized through an
- * internal lock and each turn constructs a fresh Agent with a permission checker
- * reflecting the workspace's current mode (default: bypassPermissions).
- */
 export class AgentRuntime {
   readonly appId: bigint;
   readonly workspaceId: bigint;
@@ -199,9 +155,6 @@ export class AgentRuntime {
   private readonly broker: InteractionBroker;
   private readonly lock = new AsyncLock();
   private readonly connections = new Set<AgentConnection>();
-  // MCP servers whose instructions this conversation has already been told
-  // about; syncMcpInstructions replays the announcement once the reminder
-  // leaves history (compaction, session restore).
   private readonly mcpAnnounced = new Set<string>();
 
   private workspace: AgentWorkspaceModel;
@@ -236,11 +189,7 @@ export class AgentRuntime {
   }
 
   get isBusy(): boolean {
-    return (
-      this.activeTaskCount > 0 ||
-      this.currentTurnId !== null ||
-      this.broker.hasPending()
-    );
+    return this.activeTaskCount > 0 || this.currentTurnId !== null || this.broker.hasPending();
   }
 
   private markActivity(): void {
@@ -267,9 +216,7 @@ export class AgentRuntime {
     for (const connection of this.connections) {
       try {
         connection.send(message);
-      } catch {
-        /* a broken socket is dropped on its own close handler */
-      }
+      } catch {}
     }
   }
 
@@ -280,8 +227,7 @@ export class AgentRuntime {
     const sessionPromise = this.initializeSession();
     this.sessionPromise = sessionPromise;
     void sessionPromise.catch(() => {
-      if (this.sessionPromise === sessionPromise)
-        this.sessionPromise = undefined;
+      if (this.sessionPromise === sessionPromise) this.sessionPromise = undefined;
     });
     return sessionPromise;
   }
@@ -291,8 +237,6 @@ export class AgentRuntime {
     if (currentId !== null) {
       const existing = await this.stores.sessions.findById(currentId);
       if (existing !== null) {
-        // A fresh process has no Promise waiting for persisted PENDING rows. Only
-        // cancel those stale rows here; live broker entries are never consulted.
         await this.stores.interactions.cancelPending(existing.id);
         if (existing.status !== "COMPLETED" && existing.status !== "ABORTED") {
           if (existing.status !== "IDLE") {
@@ -304,9 +248,7 @@ export class AgentRuntime {
         }
       }
     }
-    const session = await this.stores.sessions.createAndSetCurrent(
-      this.workspaceId,
-    );
+    const session = await this.stores.sessions.createAndSetCurrent(this.workspaceId);
     this.workspace = { ...this.workspace, currentSessionId: session.id };
     this.sessionId = session.id;
     this.sequence = session.lastEventSequence;
@@ -334,58 +276,36 @@ export class AgentRuntime {
     const provider = buildProviderConfig(env, this.workspace.modelOverride);
     const handle = await Remote.Server.createRemoteAgent({
       askUser: this.askUser,
+      cwd: this.workDir,
       enableCoordinatorMode: false,
       forkDisabled: false,
       hooks: buildHookConfigs(hookRows),
       mcpServers: mcpRows.map(toYukinoMcpConfig),
       provider,
-      workDir: this.workDir,
     });
     await this.rehydrate(handle);
     return handle;
   }
 
-  private async rehydrate(
-    handle: Remote.Server.RemoteAgentHandle,
-  ): Promise<void> {
+  private async rehydrate(handle: Remote.Server.RemoteAgentHandle): Promise<void> {
     const sessionId = await this.ensureSession();
     const session = await this.stores.sessions.findById(sessionId);
     const savedMessages = parseSavedConversationMessages(session?.context);
 
-    // createRemoteAgent unconditionally injects project instructions plus the
-    // full long-term memory into the conversation. Drop that injection so
-    // Agent.restoreContext() becomes the single injection point: on the first
-    // turn it re-injects instructions, the skill listing, and — honoring the
-    // workspace's memoryEnabled gate — the memory. Without this reset a fresh
-    // (or transcript-replayed) session would carry the memory even when
-    // memoryEnabled is false, because injectLongTermMemory is a no-op once the
-    // library has injected once.
     handle.conv.reset();
 
     if (savedMessages !== null && savedMessages.length > 0) {
-      // Canonical restore (mirrors the library's restoreRemoteSession): append
-      // the persisted messages verbatim, preserving thinking/tool-use/tool-result
-      // blocks (including contentBlocks) exactly. Persisted <system-reminder>
-      // wrappers are dropped: they are re-derivable at runtime and would
-      // otherwise accumulate one copy per restart.
       handle.conv.appendMessages(
         savedMessages.filter((message) => !isWrappedSystemReminder(message)),
       );
     } else {
-      const rows = await this.stores.transcript.listRecent(
-        sessionId,
-        REPLAY_LIMIT,
-      );
+      const rows = await this.stores.transcript.listRecent(sessionId, REPLAY_LIMIT);
       for (const row of rows) {
         const payload = row.payload as { text?: unknown } | null;
-        const text =
-          payload !== null && typeof payload.text === "string"
-            ? payload.text
-            : "";
+        const text = payload !== null && typeof payload.text === "string" ? payload.text : "";
         if (text.length === 0) continue;
         if (row.kind === "user_message") handle.conv.addUserMessage(text);
-        else if (row.kind === "assistant_message")
-          handle.conv.addAssistantMessage(text);
+        else if (row.kind === "assistant_message") handle.conv.addAssistantFull(text, [], []);
       }
     }
 
@@ -397,9 +317,7 @@ export class AgentRuntime {
     }
   }
 
-  private readonly askUser: Tools.AskUser.Asker = async (
-    questions: Tools.AskUser.Question[],
-  ) => {
+  private readonly askUser: Tools.AskUser.Asker = async (questions: Tools.AskUser.Question[]) => {
     this.assertAcceptingTasks();
     const sessionId = this.sessionId;
     const { answers, interactionId } = await this.broker.requestQuestions({
@@ -422,10 +340,7 @@ export class AgentRuntime {
     }
   };
 
-  private buildPermissionCallback(
-    checker: Permissions.PermissionChecker,
-    turnId: string,
-  ) {
+  private buildPermissionCallback(checker: Permissions.PermissionChecker, turnId: string) {
     return async (
       toolName: string,
       args: Record<string, unknown>,
@@ -433,12 +348,11 @@ export class AgentRuntime {
     ): Promise<PermissionDecision> => {
       if (this.disposing) return "deny";
       const description = checker.describeToolAction(toolName, args);
-      const { decision: pending, interactionId } =
-        await this.broker.requestPermission({
-          payload: toPermissionPayload(toolName, args, decision, description),
-          sessionId: this.sessionId,
-          turnId,
-        });
+      const { decision: pending, interactionId } = await this.broker.requestPermission({
+        payload: toPermissionPayload(toolName, args, decision, description),
+        sessionId: this.sessionId,
+        turnId,
+      });
       this.broadcast({
         interactionId,
         request: { args, description, reason: decision.reason, toolName },
@@ -480,10 +394,7 @@ export class AgentRuntime {
     this.broadcast({ event: toEventMessage(row), type: "event" });
   }
 
-  private async setStatus(
-    status: AgentSessionStatus,
-    completed = false,
-  ): Promise<void> {
+  private async setStatus(status: AgentSessionStatus, completed = false): Promise<void> {
     await this.stores.sessions.updateStatus(this.sessionId, status, completed);
   }
 
@@ -500,7 +411,6 @@ export class AgentRuntime {
     this.markActivity();
   }
 
-  /** Runs a task under the same lock as agent turns (used by file mutations). */
   async runExclusive<T>(task: (workDir: string) => Promise<T>): Promise<T> {
     this.markActivity();
     return this.runLockedTask(() => task(this.workDir));
@@ -513,9 +423,7 @@ export class AgentRuntime {
   private async currentHighWatermark(sessionId: string): Promise<bigint> {
     const persisted = await this.stores.sessions.findById(sessionId);
     const highWatermark =
-      persisted !== null &&
-      persisted !== undefined &&
-      persisted.lastEventSequence > this.sequence
+      persisted !== null && persisted !== undefined && persisted.lastEventSequence > this.sequence
         ? persisted.lastEventSequence
         : this.sequence;
     this.sequence = highWatermark;
@@ -543,10 +451,7 @@ export class AgentRuntime {
     });
   }
 
-  async sendBacklog(
-    connection: AgentConnection,
-    afterSequence: bigint,
-  ): Promise<void> {
+  async sendBacklog(connection: AgentConnection, afterSequence: bigint): Promise<void> {
     const sessionId = await this.ensureSession();
     const highWatermark = await this.currentHighWatermark(sessionId);
     let cursor = afterSequence;
@@ -599,15 +504,9 @@ export class AgentRuntime {
 
   abort(): void {
     this.currentAbort?.abort();
-    // Mirrors the library's RemoteAgentHandle.abort(): interrupting the turn
-    // also stops backgrounded tasks and teammates, or their processes would
-    // outlive the interruption.
     void this.handlePromise
       ?.then((handle) =>
-        Promise.allSettled([
-          handle.backgroundTaskManager.stopAll(),
-          handle.teamManager.stopAll(),
-        ]),
+        Promise.allSettled([handle.backgroundTaskManager.stopAll(), handle.teamManager.stopAll()]),
       )
       .catch(() => undefined);
   }
@@ -648,24 +547,12 @@ export class AgentRuntime {
 
         handle.conv.addUserMessage(this.composePrompt(input));
 
-        // Announce the instructions of every connected MCP server this
-        // conversation has not seen yet; the announcement is replayed once
-        // compaction or restore removes it from history.
         if (handle.mcpManager !== null) {
-          MCP.Instructions.syncMcpInstructions(
-            handle.conv,
-            this.mcpAnnounced,
-            handle.mcpManager,
-          );
+          MCP.Instructions.syncMcpInstructions(handle.conv, this.mcpAnnounced, handle.mcpManager);
         }
 
         const skillSection =
-          handle.skillCatalog !== null
-            ? Skills.Catalog.buildSkillSection(
-                handle.skillCatalog,
-                this.workDir,
-              )
-            : "";
+          handle.skillCatalog !== null ? Skills.Catalog.buildSkillSection(handle.skillCatalog) : "";
 
         const agent = new Agent.Agent({
           abortSignal: abort.signal,
@@ -679,43 +566,27 @@ export class AgentRuntime {
           fileStateCache: handle.fileStateCache,
           instructions: handle.longTermMemoryInstructions,
           maxIterations: env.AI_MAX_ITERATIONS,
-          maxOutput: Config.getMaxOutputTokens(handle.provider),
-          memoryContent: this.workspace.memoryEnabled
-            ? handle.longTermMemoryMemoryContent
-            : "",
+          maxOutput: Config.ProviderConfig.getMaxOutputTokens(handle.provider),
+          memoryContent: this.workspace.memoryEnabled ? handle.longTermMemoryMemoryContent : "",
           notificationFn: () => [
-            ...handle.teamManager.drainLeads(),
+            ...handle.teamManager.drainLeaderMailbox(),
             ...handle.backgroundTaskManager
               .drainNotifications()
               .map(Subagent.TaskManager.formatAgentTaskNotification),
           ],
-          onPermissionRequest: this.buildPermissionCallback(
-            checker,
-            input.turnId,
-          ),
+          onPermissionRequest: this.buildPermissionCallback(checker, input.turnId),
           recoveryState: handle.recoveryState,
           registry: handle.registry,
-          // Session persistence is DB-only: passing an empty sessionId disables
-          // Yukino's own JSONL session writes so the DB transcript is authoritative.
           sessionId: "",
           skillSection,
-          // The long-term-memory injection (which carries the skill listing)
-          // happens once per conversation, so skills installed mid-session are
-          // announced through this delta reminder instead.
           skillDeltaFn: () => {
             const section =
               handle.skillCatalog !== null
-                ? Skills.Catalog.buildSkillSection(
-                    handle.skillCatalog,
-                    this.workDir,
-                  )
+                ? Skills.Catalog.buildSkillSection(handle.skillCatalog)
                 : "";
-            return section.length > 0 &&
-              !handle.conv.hasReminderContaining(section)
-              ? section
-              : "";
+            return section.length > 0 && !handle.conv.hasReminderContaining(section) ? section : "";
           },
-          workDir: this.workDir,
+          cwd: this.workDir,
           toolFilter: (name: string) =>
             Teams.Coordinator.coordinatorToolFilter(false)(name) &&
             (handle.toolFilter !== null ? handle.toolFilter(name) : true),
@@ -731,8 +602,7 @@ export class AgentRuntime {
             await this.dispatchEvent(input.turnId, adapter, event);
           }
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Agent run failed";
+          const message = error instanceof Error ? error.message : "Agent run failed";
           await this.emitPersist(input.turnId, "error", { message });
           this.broadcast({
             code: "agent_error",
@@ -783,24 +653,17 @@ export class AgentRuntime {
     const summary = conv
       .getMessages()
       .slice(-40)
-      .map(
-        (message) =>
-          `[${message.role}]: ${Utils.contentToText(message.content)}`,
-      )
+      .map((message) => `[${message.role}]: ${Utils.contentToText(message.content)}`)
       .filter((line) => line.length > 12)
       .join("\n");
     new Memory.Extractor.MemoryExtractor(handle.client, this.workDir)
       .extract(summary)
-      .catch(() => {
-        /* non-fatal */
-      });
+      .catch(() => {});
     new Memory.Consolidation.MemoryConsolidator(handle.client, this.workDir, {
       appendSystem: (message) => conv.addSystemReminder(message),
     })
       .maybeRun()
-      .catch(() => {
-        /* non-fatal */
-      });
+      .catch(() => {});
   }
 
   private async finalizeTurn(
@@ -829,10 +692,7 @@ export class AgentRuntime {
 
     const outcome = adapter.outcome();
     if (outcome === "end_turn") {
-      const sha = await this.git.snapshot(
-        this.workDir,
-        `agent: ${input.turnId}`,
-      );
+      const sha = await this.git.snapshot(this.workDir, `agent: ${input.turnId}`);
       this.broadcast({
         paths: [],
         type: "files_changed",
@@ -846,9 +706,7 @@ export class AgentRuntime {
         context: { messages: handle.conv.getMessages() },
         runtimeMetadata: { lastOutcome: outcome, lastTurnId: input.turnId },
       });
-    } catch {
-      /* snapshot persistence is best-effort */
-    }
+    } catch {}
 
     await this.setStatus("IDLE");
     this.broadcast({
@@ -872,8 +730,6 @@ export class AgentRuntime {
       await this.broker.cancelSession(sessionAtAbort).catch(() => undefined);
     }
 
-    // Disposal is never called from inside the workspace lock: doing so would
-    // wait on the task that invoked it. Admission is already closed above.
     await this.lock.drain();
 
     await this.sessionPromise?.catch(() => undefined);
@@ -887,38 +743,23 @@ export class AgentRuntime {
         await handle.backgroundTaskManager.stopAll().catch(() => undefined);
         await handle.teamManager.stopAll().catch(() => undefined);
         await handle.mcpManager?.disconnectAll().catch(() => undefined);
-        await handle.hookEngine
-          ?.fire("shutdown", { event: "shutdown" })
-          .catch(() => undefined);
-        try {
-          handle.fileHistory.save();
-        } catch {
-          /* best-effort */
-        }
+        await handle.hookEngine?.fire("shutdown", { event: "shutdown" }).catch(() => undefined);
       }
     }
     for (const connection of this.connections) {
       try {
         connection.close(1001, "runtime disposed");
-      } catch {
-        /* continue closing remaining sockets */
-      }
+      } catch {}
     }
     this.connections.clear();
   }
 
-  async resolvePermission(
-    interactionId: string,
-    decision: PermissionDecision,
-  ): Promise<boolean> {
+  async resolvePermission(interactionId: string, decision: PermissionDecision): Promise<boolean> {
     this.markActivity();
     const pending = this.broker
       .snapshot(this.sessionId)
       .find((interaction) => interaction.interactionId === interactionId);
-    const resolved = await this.broker.resolvePermission(
-      interactionId,
-      decision,
-    );
+    const resolved = await this.broker.resolvePermission(interactionId, decision);
     if (resolved && pending !== undefined) {
       this.broadcast({
         interactionId,
@@ -930,10 +771,7 @@ export class AgentRuntime {
     return resolved;
   }
 
-  async resolveQuestion(
-    interactionId: string,
-    answers: QuestionAnswers,
-  ): Promise<boolean> {
+  async resolveQuestion(interactionId: string, answers: QuestionAnswers): Promise<boolean> {
     this.markActivity();
     const pending = this.broker
       .snapshot(this.sessionId)
@@ -951,13 +789,11 @@ export class AgentRuntime {
   }
 
   getCommandCandidates(): CommandCandidate[] {
-    return buildCommandCandidates(this.workDir);
+    return buildCommandCandidates();
   }
 
   private async startNewSession(): Promise<string> {
-    const session = await this.stores.sessions.createAndSetCurrent(
-      this.workspaceId,
-    );
+    const session = await this.stores.sessions.createAndSetCurrent(this.workspaceId);
     this.workspace = { ...this.workspace, currentSessionId: session.id };
     this.sessionId = session.id;
     this.sequence = session.lastEventSequence;
@@ -981,11 +817,6 @@ export class AgentRuntime {
     });
   }
 
-  /**
-   * Handles a slash command entered via a `run` message. Reliably supported
-   * commands run against the in-process stack; `/skill` is rewritten into a
-   * normal agent turn; everything else returns an explicit unsupported result.
-   */
   async handleCommand(input: string, requestId: string): Promise<void> {
     const parsed = parseCommand(input);
     if (parsed === null) {
@@ -1069,10 +900,6 @@ export class AgentRuntime {
     }
     if (name === "compact") {
       await this.runLockedTask(async () => {
-        // Mirrors the Agent loop's own compaction: schemas are rendered for the
-        // client's wire protocol (raw tool.schema() is Anthropic-shaped and
-        // would skew the token estimate on OpenAI-style clients) and narrowed
-        // by the active tool filter.
         const result = await Compact.Compact.forceCompact(
           handle.conv,
           handle.client,
@@ -1117,8 +944,7 @@ export class AgentRuntime {
       return;
     }
     const prompt = Skills.Executor.runInline(skill, rest.join(" "), {
-      activateSkill: (activatedName, body) =>
-        handle.activeSkills.set(activatedName, body),
+      activateSkill: (activatedName, body) => handle.activeSkills.set(activatedName, body),
     });
     this.sendCommandResult(requestId, "skill", true, {
       result: { activated: skillName },
@@ -1126,10 +952,7 @@ export class AgentRuntime {
     await this.runTurn({ input: prompt, requestId, turnId: randomUUID() });
   }
 
-  private async runRewindCommand(
-    args: string,
-    requestId: string,
-  ): Promise<void> {
+  private async runRewindCommand(args: string, requestId: string): Promise<void> {
     const sha = args.trim();
     if (sha.length === 0) {
       const snapshots = await this.git.listSnapshots(this.workDir);
@@ -1138,9 +961,7 @@ export class AgentRuntime {
       });
       return;
     }
-    const ok = await this.runLockedTask(() =>
-      this.git.rewindTo(this.workDir, sha),
-    );
+    const ok = await this.runLockedTask(() => this.git.rewindTo(this.workDir, sha));
     if (ok) this.broadcast({ paths: [], revision: sha, type: "files_changed" });
     this.sendCommandResult(requestId, "rewind", ok, {
       ...(ok ? { result: { rewoundTo: sha } } : { error: "Rewind failed" }),

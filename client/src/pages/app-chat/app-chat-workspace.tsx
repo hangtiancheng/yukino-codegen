@@ -36,14 +36,8 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
     dispatch,
   });
   const agentRunning = isAgentBusy(state.runtimeStatus);
-  // Two panes side by side stop being usable on a phone; stack them instead.
   const stacked = !useMediaQuery("(min-width: 768px)");
 
-  // A freshly created app carries its initial prompt but no transcript yet.
-  // Once the socket connects and replays an empty history, send that prompt
-  // once: it becomes the first user message and scaffolds the project. Guarding
-  // on an empty, idle, fully-replayed session prevents re-sending on reconnect,
-  // for existing apps, or after `/clear`.
   const initialPromptSentRef = useRef(false);
   const runAgent = socket.run;
   useEffect(() => {

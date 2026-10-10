@@ -11,21 +11,12 @@ import { useWorkspace } from "./workspace-context";
 type WorkspaceTab = "preview" | "code";
 
 export type WorkspacePanelProps = {
-  /** Owner may toggle the visual editor over the preview. */
   readonly canEdit: boolean;
-  /** Whether the "Fix with AI" affordance is shown for preview errors. */
   readonly canFix: boolean;
-  /** Invoked with the current preview error when the user asks the agent to fix it. */
   readonly onFixError: (error: PreviewRuntimeError) => void;
   readonly className?: string;
 };
 
-/**
- * The unified right-side workspace: a Preview tab reusing the existing preview,
- * visual editor, and error-fix flow, plus a Code tab with the Monaco IDE. Both
- * surfaces stay mounted and are toggled with `hidden`; the Code surface is only
- * mounted on first selection so Monaco loads lazily.
- */
 export function WorkspacePanel({
   canEdit,
   canFix,

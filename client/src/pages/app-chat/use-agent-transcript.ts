@@ -1,14 +1,5 @@
 import { useReducer, type Dispatch } from "react";
 
-/**
- * Client-side transcript model for the bidirectional Agent workspace. It mirrors
- * the server WebSocket protocol in `server/src/agent-runtime/protocol.ts`:
- * persisted events arrive wrapped in `event` / `transcript_batch`, while live
- * token streaming (`assistant_delta`) and thinking (`agent_status`) are ephemeral
- * and are superseded by the persisted `assistant_message` / `thinking` events at
- * turn end.
- */
-
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -88,9 +79,7 @@ export type AgentTranscriptState = {
   readonly sessionId: string | undefined;
   readonly permissionMode: string | undefined;
   readonly readOnly: boolean;
-  /** Highest contiguous event actually applied for the current session. */
   readonly lastSequence: string;
-  /** Fixed server target for the current replay cycle. */
   readonly replayHighWatermark: string;
   readonly replayComplete: boolean;
   readonly replaying: boolean;
@@ -202,7 +191,6 @@ const MAX_COMMAND_RESULTS = 50;
 const MAX_ERRORS = 20;
 let sideItemId = 0;
 
-/** Numeric comparison of decimal sequence strings (arbitrary length safe). */
 export function compareAgentSequences(left: string, right: string): number {
   if (left.length !== right.length) return left.length < right.length ? -1 : 1;
   if (left === right) return 0;
@@ -224,8 +212,6 @@ function mergeEvents(
   );
 }
 
-// Persisted events that mark the boundary between live streaming and the
-// authoritative transcript. Once these arrive the ephemeral buffers are cleared.
 const TURN_BOUNDARY_KINDS = new Set([
   "user_message",
   "assistant_message",
@@ -342,7 +328,6 @@ export function agentTranscriptReducer(
             : (action.turnId ?? state.currentTurnId),
         runtimeStatus: action.status,
         statusDetail: action.detail,
-        // Reaching a terminal status drops any half-streamed buffers.
         ...(action.status === "idle" && { thinkingText: "" }),
       };
     case "permission_mode":

@@ -31,36 +31,28 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans:
-    'Yukino', 'Maple Mono', Menlo, 'Cascadia Code', 'Sarasa Gothic SC', 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
+    "Yukino", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono:
-    'Yukino', 'Maple Mono', Menlo, 'Cascadia Code', 'Sarasa Gothic SC', 'PingFang SC',
-    'Microsoft YaHei', monospace;
+    "Yukino", "Maple Mono", Menlo, "Cascadia Code", "Sarasa Gothic SC",
+    "PingFang SC", "Microsoft YaHei", monospace;
 }
 
-/*
- * Sage-tinted elevation. Shadows carry a faint green cast (hue ~150) so cards
- * lift off the sage background instead of floating over grey noise. `glow` is
- * the hover state: a hairline ring plus a soft primary bloom.
- */
 @theme {
   --shadow-soft:
-    0 1px 2px oklch(0.4 0.03 150 / 0.05), 0 4px 12px -4px oklch(0.4 0.03 150 / 0.08);
+    0 1px 2px oklch(0.4 0.03 150 / 0.05),
+    0 4px 12px -4px oklch(0.4 0.03 150 / 0.08);
   --shadow-card:
-    0 1px 2px oklch(0.4 0.03 150 / 0.04), 0 8px 24px -12px oklch(0.4 0.03 150 / 0.14);
+    0 1px 2px oklch(0.4 0.03 150 / 0.04),
+    0 8px 24px -12px oklch(0.4 0.03 150 / 0.14);
   --shadow-pop:
-    0 2px 6px oklch(0.4 0.03 150 / 0.06), 0 16px 40px -16px oklch(0.4 0.03 150 / 0.22);
+    0 2px 6px oklch(0.4 0.03 150 / 0.06),
+    0 16px 40px -16px oklch(0.4 0.03 150 / 0.22);
   --shadow-glow:
     0 0 0 1px var(--primary-glow-ring, oklch(0.52 0.075 152 / 0.14)),
     0 12px 32px -12px oklch(0.52 0.075 152 / 0.28);
 }
 
-/*
- * Light sage-green system. Every surface carries a faint sage cast (hue ~145
- * in OKLCH); the primary is a deep garden sage so buttons stay readable on
- * pale backgrounds. Destructive is a warm clay red that sits next to green
- * without vibrating.
- */
 :root {
   --radius: 0.625rem;
   --background: oklch(0.98 0.006 145);
@@ -102,7 +94,6 @@
     color: oklch(0.25 0.03 155);
   }
 
-  /* Slim sage-tinted scrollbars; translucent thumb keeps panels airy. */
   * {
     scrollbar-width: thin;
     scrollbar-color: oklch(0.75 0.03 150 / 0.5) transparent;
@@ -130,15 +121,21 @@
 }
 
 @layer utilities {
-  /* Faint blueprint grid used behind hero surfaces; mask it out at the edges. */
   .bg-grid-sage {
     background-image:
-      linear-gradient(to right, oklch(0.52 0.075 152 / 0.07) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(0.52 0.075 152 / 0.07) 1px, transparent 1px);
+      linear-gradient(
+        to right,
+        oklch(0.52 0.075 152 / 0.07) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        oklch(0.52 0.075 152 / 0.07) 1px,
+        transparent 1px
+      );
     background-size: 44px 44px;
   }
 
-  /* Primary→leaf gradient text for headline accents. */
   .text-gradient-sage {
     background-image: linear-gradient(
       100deg,
@@ -151,7 +148,6 @@
   }
 }
 
-/* Sonner toasts inherit these custom properties from the toaster container. */
 .toaster {
   --normal-bg: var(--popover);
   --normal-text: var(--popover-foreground);
@@ -159,7 +155,6 @@
   --border-radius: var(--radius);
 }
 
-/* Signature: the hero headline underline draws itself like a sprouting stem. */
 @keyframes grow-line {
   from {
     stroke-dashoffset: 320;
@@ -189,7 +184,6 @@
   animation: fade-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Slow breathing bloom behind hero art. */
 @keyframes soft-pulse {
   0%,
   100% {

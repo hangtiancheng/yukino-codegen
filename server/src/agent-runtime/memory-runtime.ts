@@ -7,10 +7,6 @@ export type MemoryVo = Readonly<{
   path: string;
 }>;
 
-/**
- * Reads and clears long-term memory files for a workspace directory via the
- * public MemoryManager. `clear()` deletes the on-disk memory files.
- */
 export const createMemoryRuntime = (
   workDir: string,
 ): Readonly<{

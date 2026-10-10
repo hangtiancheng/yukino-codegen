@@ -31,11 +31,6 @@ type NamePrompt = {
   readonly initialValue: string;
 };
 
-/**
- * Recursive project explorer with create/rename/delete/refresh actions and
- * dirty/conflict badges. All mutations are disabled while the agent is running
- * so its file writes are not raced by the user.
- */
 export function FileExplorer(): ReactNode {
   const workspace = useWorkspace();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());

@@ -5,13 +5,9 @@ import { FileExplorer } from "./file-explorer";
 import { WorkspaceTerminal } from "./workspace-terminal";
 
 export type CodeWorkspaceProps = {
-  /** Whether the Code tab is visible, forwarded so Monaco can relayout. */
   readonly active: boolean;
 };
 
-/**
- * Resizable IDE layout: a file explorer beside a stacked editor and terminal.
- */
 export function CodeWorkspace({ active }: CodeWorkspaceProps): ReactNode {
   return (
     <Group orientation="horizontal" className="h-full min-h-0">

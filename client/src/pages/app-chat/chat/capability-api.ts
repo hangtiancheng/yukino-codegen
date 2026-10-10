@@ -2,14 +2,6 @@ import { z } from "zod";
 import { httpClient } from "@/shared/api/http-client-singleton";
 import type { AppId } from "@/shared/schemas";
 
-/**
- * Capability REST client aligned to the actual server routes under
- * `/app/:appId/agent/*` (see server/src/routes/agent-*.ts). Kept separate from
- * the transcript socket: these drive the capability drawer (MCP, settings,
- * sessions, skills, memory). Secrets are never returned — MCP rows only report
- * `hasHeaders`/`hasEnv`.
- */
-
 export const PERMISSION_MODES = [
   "DEFAULT",
   "ACCEPT_EDITS",

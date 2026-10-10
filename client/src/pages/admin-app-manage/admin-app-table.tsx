@@ -41,7 +41,7 @@ function appColumns(
   return [
     { key: "id", header: "ID", render: (app) => app.id },
     {
-      key: "name", // appName
+      key: "name",
       header: "App",
       render: (app) => (
         <div>
@@ -53,7 +53,7 @@ function appColumns(
       ),
     },
     {
-      key: "cover", // appCover
+      key: "cover",
       header: "Cover",
       render: (app) =>
         app.appCover ? (

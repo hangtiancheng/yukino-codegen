@@ -26,12 +26,6 @@ export type RuntimeManagerApi = Readonly<{
   workDirFor: (appId: bigint) => string;
 }>;
 
-/**
- * Owns the lifecycle of per-app AgentRuntime instances. Runtimes are keyed by
- * `${ownerId}:${appId}` (the canonical workspace belongs to the app owner), live
- * across connections, and are evicted after an idle window. On shutdown every
- * runtime is disposed (MCP disconnect, hook shutdown, file-history save, abort).
- */
 export const createRuntimeManager = (deps: RuntimeManagerDeps): RuntimeManagerApi => {
   const stores: AgentStores = createAgentStores(deps.db);
   const git: GitRuntime = createGitRuntime();

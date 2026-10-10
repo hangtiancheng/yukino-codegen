@@ -27,30 +27,18 @@ export type DownloadEntry = Readonly<{
 
 const isIncludedPart = (name: string): boolean =>
   !EXCLUDED_NAMES.has(name) &&
-  !EXCLUDED_EXTENSIONS.some((extension) =>
-    name.toLowerCase().endsWith(extension),
-  );
+  !EXCLUDED_EXTENSIONS.some((extension) => name.toLowerCase().endsWith(extension));
 
 const assertProjectDir = (projectDir: string): void => {
   if (!existsSync(projectDir)) {
-    throw new HttpError(
-      ErrorCode.NotFoundError,
-      "Project directory not found",
-      404,
-    );
+    throw new HttpError(ErrorCode.NotFoundError, "Project directory not found", 404);
   }
   if (!statSync(projectDir).isDirectory()) {
-    throw new HttpError(
-      ErrorCode.ParamsError,
-      "Project path is not a directory",
-    );
+    throw new HttpError(ErrorCode.ParamsError, "Project path is not a directory");
   }
 };
 
-const listEntries = async (
-  projectDir: string,
-  currentDir: string,
-): Promise<DownloadEntry[]> => {
+const listEntries = async (projectDir: string, currentDir: string): Promise<DownloadEntry[]> => {
   const entries = await readdir(currentDir, { withFileTypes: true });
   const results = await Promise.all(
     entries
@@ -69,16 +57,12 @@ const listEntries = async (
   return results.flat();
 };
 
-export const listProjectDownloadEntries = async (
-  projectDir: string,
-): Promise<DownloadEntry[]> => {
+export const listProjectDownloadEntries = async (projectDir: string): Promise<DownloadEntry[]> => {
   assertProjectDir(projectDir);
   return listEntries(projectDir, projectDir);
 };
 
-export const createProjectZipStream = async (
-  projectDir: string,
-): Promise<Archiver> => {
+export const createProjectZipStream = async (projectDir: string): Promise<Archiver> => {
   const archive = archiver("zip", { zlib: { level: 9 } });
   const entries = await listProjectDownloadEntries(projectDir);
   for (const entry of entries) {
