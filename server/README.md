@@ -152,29 +152,26 @@ server/
   prisma/
     schema.prisma              Prisma schema and generated client configuration
   src/
-    ai/                         Model configuration, OpenAI provider, routing, guardrails, tools
+    agent-runtime/              @yukino.js/yukino library-mode integration (runtime,
+                                protocol, stores, MCP/hook/skill/memory/git runtimes)
     app-module/                 App domain service, repository, schemas
-    chat-history/               Chat history domain service, repository, schemas
+    chat-history/               Chat history queries for admin review
     common/                     Response envelopes, errors, pagination, ID and prompt schemas
     config/                     Environment schemas and parsed runtime env
-    cutover/                    Cutover evidence utilities
     database/                   Prisma client construction
-    deployment/                 Storage adapters, static file serving
+    deployment/                 Storage adapters, object storage health
     middleware/                 Error handling and security middleware
-    migration/                  Legacy snapshot migration utilities
     observability/              Health checks, metrics, request context
-    project/                    Code parsing, saving, downloads, static file service
+    project/                    Project downloads and path helpers
     rate-limit/                 In-memory and Redis-backed rate limiting
-    routes/                     Hono route modules and route tests
+    routes/                     Hono route modules (app/user/agent/chat-history/management)
     session/                    Session schema, stores, Hono env, auth middleware
-    test-support/               Shared test factories
     user/                       User domain service, repository, schemas
-    workflow/                   AI workflow, SSE events
     app.ts                      Hono app factory
     app-dependencies.ts         Production dependency graph
     index.ts                    Node server entry point
   tmp/
-    code_output/                Generated project output
+    code_output/                Generated project output (one directory per app)
     storage/                    Local object storage root when enabled
 ```
 
@@ -281,6 +278,19 @@ Use `server/.env.example` as the canonical template.
 | ------------------------------- | ------- | --------------------------------------- |
 | `LLM_RATE_LIMIT`                | `10`    | Maximum generation requests per window. |
 | `LLM_RATE_LIMIT_WINDOW_SECONDS` | `60`    | Rate-limit window size in seconds.      |
+
+### Agent Runtime (multi-user)
+
+The agent runtime keeps one live `@yukino.js/yukino` workspace per `(owner, app)` pair. These
+knobs bound how many workspaces, turns, and sockets the node serves at once.
+
+| Variable                            | Default   | Description                                                                                  |
+| ----------------------------------- | --------- | -------------------------------------------------------------------------------------------- |
+| `AGENT_WORKSPACE_IDLE_MS`           | `900000`  | Idle time after which a workspace runtime (LLM client, MCP children, tools) is disposed.      |
+| `AGENT_WS_MAX_MESSAGE_BYTES`        | `524288`  | Maximum size of one inbound agent WebSocket frame.                                            |
+| `AGENT_MAX_CONCURRENT_TURNS`        | `4`       | Process-wide cap on simultaneously running agent loops; extra turns queue FIFO.               |
+| `AGENT_MAX_CONNECTIONS_PER_WORKSPACE` | `8`     | Maximum simultaneous WebSocket watchers per workspace; extra connections close with `1013`.   |
+| `AGENT_TURN_CLAIM_STALE_MS`         | `1800000` | A session stuck in `RUNNING` longer than this (crashed node) can be reclaimed by any instance.|
 
 ### AI Model Configuration
 
@@ -448,27 +458,45 @@ src/session/auth-middleware.ts
 
 ## Code Generation Agent
 
-The code generation integration lives under:
+The `@yukino.js/yukino` **library-mode** integration lives under:
 
 ```text
-src/codegen-agent/
+src/agent-runtime/
 ```
 
-The authenticated `GET /api/app/chat/codegen` endpoint runs an `@yukino.js/yukino` Agent with the built-in `ReadFile`, `WriteFile`, `EditFile`, `Glob`, `Grep`, and `Bash` tools. The Agent writes a Vite React TypeScript project directly into `tmp/code_output/{appId}` and streams narration and tool activity to the client over SSE.
+One live `AgentRuntime` is kept per `(owner, app)` pair (created lazily, swept after
+`AGENT_WORKSPACE_IDLE_MS`). Each runtime owns a `Remote.Server.RemoteAgentHandle`
+(LLM client, tool registry, conversation, MCP, skills, hooks, teams) and drives the
+agent loop with the same semantics as Yukino's Remote server, adapted for a
+multi-user service:
 
-Typical flow:
+- **Transport** — `GET /api/app/:appId/agent/ws` (session-authenticated). Owners and
+  admins get writable connections; everyone else is read-only. Every workspace caps
+  its simultaneous watchers (`AGENT_MAX_CONNECTIONS_PER_WORKSPACE`, close `1013`),
+  and a server-side ping sweep terminates half-open sockets.
+- **Admission control** — at most `AGENT_MAX_CONCURRENT_TURNS` agent loops run per
+  node across all users (FIFO with per-user fairness); the rest queue.
+- **Cross-instance mutex** — turns claim the session row (`IDLE -> RUNNING` CAS,
+  stale claims reclaimable after `AGENT_TURN_CLAIM_STALE_MS`), so a workspace is
+  driven by exactly one node even behind a load balancer.
+- **Transcript** — every event persists to `agent_transcript_events` with a monotonic
+  sequence; reconnecting clients replay the backlog from their last sequence.
+- **Steering & follow-ups** — messages sent mid-turn steer the running loop
+  (Remote parity); slash/Bash input queues as follow-ups and replays when idle.
+- **Interactions** — permission and ask-user prompts persist to `agent_interactions`,
+  expire after 5 minutes, and settle deterministically on abort/dispose.
+- **Remote-parity capabilities** — plan mode with browser plan approval
+  (`yolo`/`manual`/`feedback`), `/goal`, fork-mode skills, `/model` discovery and
+  hot-swap, `/thinking` levels, runtime `/sandbox auto|manual|off`, in-place
+  `/mcp reload`, `/worktree`, `/status`, user `!`/`!!` Bash, image uploads with
+  `@`-reference expansion, `@file` completion, prompt history, code review
+  (`/code-review` form + progress stream), conversation/code rewind checkpoints,
+  Ctrl+B shell backgrounding, live usage/context occupancy, and subagent/background
+  task/teammate activity feeds.
 
-```text
-1. Receive an authenticated codegen request and apply the rate limit
-2. Load the app's recent chat history for iterative editing
-3. Run the Agent in the app output directory
-4. Stream message and tool events to the browser
-5. Validate package.json and index.html
-6. Store the narration and generated file manifest in chat history
-7. Emit done or business-error
-```
-
-There is no routing model, code-generation type, separate quality model, or markdown code-block parser.
+Intentional deviations from single-user Remote: `/quit` and provider switching are
+not exposed (the server is shared and provider credentials come from environment
+configuration; per-workspace `modelOverride` covers model choice).
 
 ## Browser Preview
 

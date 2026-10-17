@@ -169,6 +169,16 @@ export const createEventAdapter = () => {
             persist: false,
           },
         ];
+      case "steering_delivered":
+        return [
+          {
+            message: {
+              payload: { phase: "steering_delivered", text: event.text },
+              type: "agent_status",
+            },
+            persist: false,
+          },
+        ];
       default:
         return [];
     }

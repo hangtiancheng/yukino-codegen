@@ -48,6 +48,8 @@ export type AgentWorkspaceMinAggregateOutputType = {
   memoryEnabled: boolean | null
   hooksEnabled: boolean | null
   modelOverride: string | null
+  thinkingLevel: string | null
+  sandboxAutoAllow: boolean | null
   createTime: Date | null
   updateTime: Date | null
 }
@@ -62,6 +64,8 @@ export type AgentWorkspaceMaxAggregateOutputType = {
   memoryEnabled: boolean | null
   hooksEnabled: boolean | null
   modelOverride: string | null
+  thinkingLevel: string | null
+  sandboxAutoAllow: boolean | null
   createTime: Date | null
   updateTime: Date | null
 }
@@ -76,6 +80,8 @@ export type AgentWorkspaceCountAggregateOutputType = {
   memoryEnabled: number
   hooksEnabled: number
   modelOverride: number
+  thinkingLevel: number
+  sandboxAutoAllow: number
   createTime: number
   updateTime: number
   _all: number
@@ -104,6 +110,8 @@ export type AgentWorkspaceMinAggregateInputType = {
   memoryEnabled?: true
   hooksEnabled?: true
   modelOverride?: true
+  thinkingLevel?: true
+  sandboxAutoAllow?: true
   createTime?: true
   updateTime?: true
 }
@@ -118,6 +126,8 @@ export type AgentWorkspaceMaxAggregateInputType = {
   memoryEnabled?: true
   hooksEnabled?: true
   modelOverride?: true
+  thinkingLevel?: true
+  sandboxAutoAllow?: true
   createTime?: true
   updateTime?: true
 }
@@ -132,6 +142,8 @@ export type AgentWorkspaceCountAggregateInputType = {
   memoryEnabled?: true
   hooksEnabled?: true
   modelOverride?: true
+  thinkingLevel?: true
+  sandboxAutoAllow?: true
   createTime?: true
   updateTime?: true
   _all?: true
@@ -233,6 +245,8 @@ export type AgentWorkspaceGroupByOutputType = {
   memoryEnabled: boolean
   hooksEnabled: boolean
   modelOverride: string | null
+  thinkingLevel: string | null
+  sandboxAutoAllow: boolean
   createTime: Date
   updateTime: Date
   _count: AgentWorkspaceCountAggregateOutputType | null
@@ -270,6 +284,8 @@ export type AgentWorkspaceWhereInput = {
   memoryEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   hooksEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   modelOverride?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  thinkingLevel?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  sandboxAutoAllow?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   createTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
   updateTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -290,6 +306,8 @@ export type AgentWorkspaceOrderByWithRelationInput = {
   memoryEnabled?: Prisma.SortOrder
   hooksEnabled?: Prisma.SortOrder
   modelOverride?: Prisma.SortOrderInput | Prisma.SortOrder
+  thinkingLevel?: Prisma.SortOrderInput | Prisma.SortOrder
+  sandboxAutoAllow?: Prisma.SortOrder
   createTime?: Prisma.SortOrder
   updateTime?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -314,6 +332,8 @@ export type AgentWorkspaceWhereUniqueInput = Prisma.AtLeast<{
   memoryEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   hooksEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   modelOverride?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  thinkingLevel?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  sandboxAutoAllow?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   createTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
   updateTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -334,6 +354,8 @@ export type AgentWorkspaceOrderByWithAggregationInput = {
   memoryEnabled?: Prisma.SortOrder
   hooksEnabled?: Prisma.SortOrder
   modelOverride?: Prisma.SortOrderInput | Prisma.SortOrder
+  thinkingLevel?: Prisma.SortOrderInput | Prisma.SortOrder
+  sandboxAutoAllow?: Prisma.SortOrder
   createTime?: Prisma.SortOrder
   updateTime?: Prisma.SortOrder
   _count?: Prisma.AgentWorkspaceCountOrderByAggregateInput
@@ -356,6 +378,8 @@ export type AgentWorkspaceScalarWhereWithAggregatesInput = {
   memoryEnabled?: Prisma.BoolWithAggregatesFilter<"AgentWorkspace"> | boolean
   hooksEnabled?: Prisma.BoolWithAggregatesFilter<"AgentWorkspace"> | boolean
   modelOverride?: Prisma.StringNullableWithAggregatesFilter<"AgentWorkspace"> | string | null
+  thinkingLevel?: Prisma.StringNullableWithAggregatesFilter<"AgentWorkspace"> | string | null
+  sandboxAutoAllow?: Prisma.BoolWithAggregatesFilter<"AgentWorkspace"> | boolean
   createTime?: Prisma.DateTimeWithAggregatesFilter<"AgentWorkspace"> | Date | string
   updateTime?: Prisma.DateTimeWithAggregatesFilter<"AgentWorkspace"> | Date | string
 }
@@ -367,6 +391,8 @@ export type AgentWorkspaceCreateInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -387,6 +413,8 @@ export type AgentWorkspaceUncheckedCreateInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -401,6 +429,8 @@ export type AgentWorkspaceUpdateInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -421,6 +451,8 @@ export type AgentWorkspaceUncheckedUpdateInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -438,6 +470,8 @@ export type AgentWorkspaceCreateManyInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
 }
@@ -449,6 +483,8 @@ export type AgentWorkspaceUpdateManyMutationInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -463,6 +499,8 @@ export type AgentWorkspaceUncheckedUpdateManyInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -492,6 +530,8 @@ export type AgentWorkspaceCountOrderByAggregateInput = {
   memoryEnabled?: Prisma.SortOrder
   hooksEnabled?: Prisma.SortOrder
   modelOverride?: Prisma.SortOrder
+  thinkingLevel?: Prisma.SortOrder
+  sandboxAutoAllow?: Prisma.SortOrder
   createTime?: Prisma.SortOrder
   updateTime?: Prisma.SortOrder
 }
@@ -512,6 +552,8 @@ export type AgentWorkspaceMaxOrderByAggregateInput = {
   memoryEnabled?: Prisma.SortOrder
   hooksEnabled?: Prisma.SortOrder
   modelOverride?: Prisma.SortOrder
+  thinkingLevel?: Prisma.SortOrder
+  sandboxAutoAllow?: Prisma.SortOrder
   createTime?: Prisma.SortOrder
   updateTime?: Prisma.SortOrder
 }
@@ -526,6 +568,8 @@ export type AgentWorkspaceMinOrderByAggregateInput = {
   memoryEnabled?: Prisma.SortOrder
   hooksEnabled?: Prisma.SortOrder
   modelOverride?: Prisma.SortOrder
+  thinkingLevel?: Prisma.SortOrder
+  sandboxAutoAllow?: Prisma.SortOrder
   createTime?: Prisma.SortOrder
   updateTime?: Prisma.SortOrder
 }
@@ -715,6 +759,8 @@ export type AgentWorkspaceCreateWithoutUserInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   app: Prisma.AppCreateNestedOneWithoutAgentWorkspacesInput
@@ -733,6 +779,8 @@ export type AgentWorkspaceUncheckedCreateWithoutUserInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -779,6 +827,8 @@ export type AgentWorkspaceScalarWhereInput = {
   memoryEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   hooksEnabled?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   modelOverride?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  thinkingLevel?: Prisma.StringNullableFilter<"AgentWorkspace"> | string | null
+  sandboxAutoAllow?: Prisma.BoolFilter<"AgentWorkspace"> | boolean
   createTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
   updateTime?: Prisma.DateTimeFilter<"AgentWorkspace"> | Date | string
 }
@@ -790,6 +840,8 @@ export type AgentWorkspaceCreateWithoutAppInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -808,6 +860,8 @@ export type AgentWorkspaceUncheckedCreateWithoutAppInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -848,6 +902,8 @@ export type AgentWorkspaceCreateWithoutSessionsInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -867,6 +923,8 @@ export type AgentWorkspaceUncheckedCreateWithoutSessionsInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   mcpServers?: Prisma.AgentMcpServerUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -885,6 +943,8 @@ export type AgentWorkspaceCreateWithoutCurrentSessionInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -903,6 +963,8 @@ export type AgentWorkspaceUncheckedCreateWithoutCurrentSessionInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -933,6 +995,8 @@ export type AgentWorkspaceUpdateWithoutSessionsInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -952,6 +1016,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutSessionsInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   mcpServers?: Prisma.AgentMcpServerUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -976,6 +1042,8 @@ export type AgentWorkspaceUpdateWithoutCurrentSessionInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -994,6 +1062,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutCurrentSessionInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -1008,6 +1078,8 @@ export type AgentWorkspaceCreateWithoutMcpServersInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -1027,6 +1099,8 @@ export type AgentWorkspaceUncheckedCreateWithoutMcpServersInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -1056,6 +1130,8 @@ export type AgentWorkspaceUpdateWithoutMcpServersInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -1075,6 +1151,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutMcpServersInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -1088,6 +1166,8 @@ export type AgentWorkspaceCreateWithoutHooksInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   user: Prisma.UserCreateNestedOneWithoutAgentWorkspacesInput
@@ -1107,6 +1187,8 @@ export type AgentWorkspaceUncheckedCreateWithoutHooksInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
   sessions?: Prisma.AgentSessionUncheckedCreateNestedManyWithoutWorkspaceInput
@@ -1136,6 +1218,8 @@ export type AgentWorkspaceUpdateWithoutHooksInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -1155,6 +1239,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutHooksInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -1170,6 +1256,8 @@ export type AgentWorkspaceCreateManyUserInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
 }
@@ -1181,6 +1269,8 @@ export type AgentWorkspaceUpdateWithoutUserInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   app?: Prisma.AppUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -1199,6 +1289,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutUserInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -1215,6 +1307,8 @@ export type AgentWorkspaceUncheckedUpdateManyWithoutUserInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1228,6 +1322,8 @@ export type AgentWorkspaceCreateManyAppInput = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: string | null
+  thinkingLevel?: string | null
+  sandboxAutoAllow?: boolean
   createTime?: Date | string
   updateTime?: Date | string
 }
@@ -1239,6 +1335,8 @@ export type AgentWorkspaceUpdateWithoutAppInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutAgentWorkspacesNestedInput
@@ -1257,6 +1355,8 @@ export type AgentWorkspaceUncheckedUpdateWithoutAppInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.AgentSessionUncheckedUpdateManyWithoutWorkspaceNestedInput
@@ -1273,6 +1373,8 @@ export type AgentWorkspaceUncheckedUpdateManyWithoutAppInput = {
   memoryEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   hooksEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   modelOverride?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  thinkingLevel?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sandboxAutoAllow?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updateTime?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -1336,6 +1438,8 @@ export type AgentWorkspaceSelect<ExtArgs extends runtime.Types.Extensions.Intern
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: boolean
+  thinkingLevel?: boolean
+  sandboxAutoAllow?: boolean
   createTime?: boolean
   updateTime?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1357,6 +1461,8 @@ export type AgentWorkspaceSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: boolean
+  thinkingLevel?: boolean
+  sandboxAutoAllow?: boolean
   createTime?: boolean
   updateTime?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1374,6 +1480,8 @@ export type AgentWorkspaceSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: boolean
+  thinkingLevel?: boolean
+  sandboxAutoAllow?: boolean
   createTime?: boolean
   updateTime?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -1391,11 +1499,13 @@ export type AgentWorkspaceSelectScalar = {
   memoryEnabled?: boolean
   hooksEnabled?: boolean
   modelOverride?: boolean
+  thinkingLevel?: boolean
+  sandboxAutoAllow?: boolean
   createTime?: boolean
   updateTime?: boolean
 }
 
-export type AgentWorkspaceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "appId" | "currentSessionId" | "permissionMode" | "sandboxEnabled" | "memoryEnabled" | "hooksEnabled" | "modelOverride" | "createTime" | "updateTime", ExtArgs["result"]["agentWorkspace"]>
+export type AgentWorkspaceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "appId" | "currentSessionId" | "permissionMode" | "sandboxEnabled" | "memoryEnabled" | "hooksEnabled" | "modelOverride" | "thinkingLevel" | "sandboxAutoAllow" | "createTime" | "updateTime", ExtArgs["result"]["agentWorkspace"]>
 export type AgentWorkspaceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   app?: boolean | Prisma.AppDefaultArgs<ExtArgs>
@@ -1436,6 +1546,8 @@ export type $AgentWorkspacePayload<ExtArgs extends runtime.Types.Extensions.Inte
     memoryEnabled: boolean
     hooksEnabled: boolean
     modelOverride: string | null
+    thinkingLevel: string | null
+    sandboxAutoAllow: boolean
     createTime: Date
     updateTime: Date
   }, ExtArgs["result"]["agentWorkspace"]>
@@ -1876,6 +1988,8 @@ export interface AgentWorkspaceFieldRefs {
   readonly memoryEnabled: Prisma.FieldRef<"AgentWorkspace", 'Boolean'>
   readonly hooksEnabled: Prisma.FieldRef<"AgentWorkspace", 'Boolean'>
   readonly modelOverride: Prisma.FieldRef<"AgentWorkspace", 'String'>
+  readonly thinkingLevel: Prisma.FieldRef<"AgentWorkspace", 'String'>
+  readonly sandboxAutoAllow: Prisma.FieldRef<"AgentWorkspace", 'Boolean'>
   readonly createTime: Prisma.FieldRef<"AgentWorkspace", 'DateTime'>
   readonly updateTime: Prisma.FieldRef<"AgentWorkspace", 'DateTime'>
 }

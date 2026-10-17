@@ -42,7 +42,16 @@ export type YukinoQuestion = Readonly<{
 
 const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
 
-export const createInteractionBroker = (stores: AgentStores, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+export type InteractionExpiredListener = (
+  interactionId: string,
+  kind: "permission" | "question",
+) => void;
+
+export const createInteractionBroker = (
+  stores: AgentStores,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  onExpired?: InteractionExpiredListener,
+) => {
   const pending = new Map<string, Pending>();
 
   const clear = (id: string): Pending | undefined => {
@@ -75,6 +84,7 @@ export const createInteractionBroker = (stores: AgentStores, timeoutMs = DEFAULT
         void stores.interactions
           .answer(row.id, "EXPIRED", { decision: "deny" })
           .catch(() => undefined);
+        onExpired?.(row.id, "permission");
         resolve("deny");
       }, timeoutMs);
       pending.set(row.id, {
@@ -109,6 +119,7 @@ export const createInteractionBroker = (stores: AgentStores, timeoutMs = DEFAULT
       const timer = setTimeout(() => {
         clear(row.id);
         void stores.interactions.answer(row.id, "EXPIRED", null).catch(() => undefined);
+        onExpired?.(row.id, "question");
         reject(new Error("Question timed out with no response"));
       }, timeoutMs);
       pending.set(row.id, {

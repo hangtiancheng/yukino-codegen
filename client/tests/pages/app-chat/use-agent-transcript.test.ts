@@ -320,4 +320,72 @@ describe("agentTranscriptReducer", () => {
     expect(reset.candidates).toEqual(candidates);
     expect(reset.lastSequence).toBe("0");
   });
+
+  it("records code review progress and releases it when the review fails", () => {
+    const progress = {
+      message: "Reviewing diff",
+      phase: "diff",
+      progress: undefined,
+    };
+    const reviewing = reduce([{ type: "code_review_progress", progress }]);
+    expect(reviewing.codeReviewProgress).toEqual(progress);
+
+    // The library never emits a `done` phase on failure, so the error frame
+    // must clear the progress or the dialog/strip stay stuck.
+    const failed = agentTranscriptReducer(reviewing, {
+      type: "error",
+      message: "boom",
+      code: "code_review_failed",
+    });
+    expect(failed.codeReviewProgress).toBeUndefined();
+    expect(failed.errors).toHaveLength(1);
+  });
+
+  it("clears stale code review progress on an invalid review request", () => {
+    const reviewing = reduce([
+      {
+        type: "code_review_progress",
+        progress: { message: "done", phase: "done", progress: undefined },
+      },
+    ]);
+    const invalid = agentTranscriptReducer(reviewing, {
+      type: "error",
+      message: "bad range",
+      code: "code_review_invalid",
+    });
+    expect(invalid.codeReviewProgress).toBeUndefined();
+  });
+
+  it("keeps code review progress for unrelated errors", () => {
+    const progress = { message: "Reviewing", phase: "review", progress: 0.5 };
+    const reviewing = reduce([{ type: "code_review_progress", progress }]);
+    const errored = agentTranscriptReducer(reviewing, {
+      type: "error",
+      message: "some other failure",
+      code: "turn_failed",
+    });
+    expect(errored.codeReviewProgress).toEqual(progress);
+  });
+
+  it("accumulates image results without dropping concurrent uploads", () => {
+    const withResults = reduce([
+      { type: "image_saved", clientId: "img_1", path: "/uploads/a.png" },
+      { type: "image_saved", clientId: "img_2", path: "/uploads/b.png" },
+      { type: "image_error", clientId: "img_3", message: "too large" },
+    ]);
+    expect(withResults.imageResults).toEqual([
+      { clientId: "img_1", message: undefined, path: "/uploads/a.png" },
+      { clientId: "img_2", message: undefined, path: "/uploads/b.png" },
+      { clientId: "img_3", message: "too large", path: undefined },
+    ]);
+
+    const consumed = reduce(
+      [{ type: "consume_image_result", clientId: "img_1" }],
+      withResults,
+    );
+    expect(consumed.imageResults.map((result) => result.clientId)).toEqual([
+      "img_2",
+      "img_3",
+    ]);
+  });
 });

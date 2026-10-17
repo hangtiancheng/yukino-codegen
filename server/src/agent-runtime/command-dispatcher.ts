@@ -34,6 +34,14 @@ export const SERVER_SUPPORTED_COMMANDS = new Set([
   "memory",
   "mcp",
   "rewind",
+  // Remote parity additions
+  "goal",
+  "plan",
+  "model",
+  "thinking",
+  "sandbox",
+  "worktree",
+  "code-review",
 ]);
 
 export const isSkillCommand = (name: string): boolean => name === "skill";

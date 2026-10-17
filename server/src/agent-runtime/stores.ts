@@ -28,9 +28,11 @@ export type ResumeSessionResult =
 export type WorkspaceSettingsPatch = Readonly<{
   permissionMode?: AgentPermissionMode | undefined;
   sandboxEnabled?: boolean | undefined;
+  sandboxAutoAllow?: boolean | undefined;
   memoryEnabled?: boolean | undefined;
   hooksEnabled?: boolean | undefined;
   modelOverride?: string | null | undefined;
+  thinkingLevel?: string | null | undefined;
 }>;
 
 export type CreateMcpInput = Readonly<{
@@ -90,9 +92,11 @@ export const createAgentStores = (db: PrismaDatabaseClient) => {
         data: {
           ...(patch.permissionMode !== undefined && { permissionMode: patch.permissionMode }),
           ...(patch.sandboxEnabled !== undefined && { sandboxEnabled: patch.sandboxEnabled }),
+          ...(patch.sandboxAutoAllow !== undefined && { sandboxAutoAllow: patch.sandboxAutoAllow }),
           ...(patch.memoryEnabled !== undefined && { memoryEnabled: patch.memoryEnabled }),
           ...(patch.hooksEnabled !== undefined && { hooksEnabled: patch.hooksEnabled }),
           ...(patch.modelOverride !== undefined && { modelOverride: patch.modelOverride }),
+          ...(patch.thinkingLevel !== undefined && { thinkingLevel: patch.thinkingLevel }),
         },
         where: { id },
       }),
@@ -171,6 +175,28 @@ export const createAgentStores = (db: PrismaDatabaseClient) => {
       }),
     touch: (id: string): Promise<AgentSessionModel> =>
       db.agentSession.update({ data: { lastActiveTime: new Date() }, where: { id } }),
+    /** Conversation rewind: resets the replay high-watermark to a checkpoint. */
+    setSequence: (id: string, sequence: bigint): Promise<AgentSessionModel> =>
+      db.agentSession.update({
+        data: { lastActiveTime: new Date(), lastEventSequence: sequence },
+        where: { id },
+      }),
+    /**
+     * Cross-instance turn mutex: atomically moves an idle session to RUNNING.
+     * A RUNNING session whose lastActiveTime is older than `staleBefore` is
+     * reclaimable, so a crashed node cannot brick the workspace forever.
+     * Returns false when another turn (here or on another instance) owns it.
+     */
+    claimTurn: async (id: string, staleBefore: Date): Promise<boolean> => {
+      const claimed = await db.agentSession.updateMany({
+        data: { lastActiveTime: new Date(), status: "RUNNING" },
+        where: {
+          id,
+          OR: [{ status: "IDLE" }, { lastActiveTime: { lt: staleBefore }, status: "RUNNING" }],
+        },
+      });
+      return claimed.count > 0;
+    },
   };
 
   const transcript = {
@@ -214,6 +240,11 @@ export const createAgentStores = (db: PrismaDatabaseClient) => {
       db.agentTranscriptEvent
         .findMany({ orderBy: { sequence: "desc" }, take: limit, where: { sessionId } })
         .then((rows) => rows.reverse()),
+    /** Conversation rewind: drops every event after the checkpoint sequence. */
+    truncateAfter: (sessionId: string, afterSequence: bigint): Promise<{ count: number }> =>
+      db.agentTranscriptEvent.deleteMany({
+        where: { sequence: { gt: afterSequence }, sessionId },
+      }),
   };
 
   const interactions = {

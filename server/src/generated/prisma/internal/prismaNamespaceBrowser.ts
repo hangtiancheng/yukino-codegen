@@ -120,6 +120,8 @@ export const AgentWorkspaceScalarFieldEnum = {
   memoryEnabled: 'memoryEnabled',
   hooksEnabled: 'hooksEnabled',
   modelOverride: 'modelOverride',
+  thinkingLevel: 'thinkingLevel',
+  sandboxAutoAllow: 'sandboxAutoAllow',
   createTime: 'createTime',
   updateTime: 'updateTime'
 } as const

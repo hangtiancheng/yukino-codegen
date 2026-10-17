@@ -102,6 +102,79 @@ describe("agentClientMessageSchema - malformed", () => {
       false,
     );
   });
+
+  it("accepts background_shells with an optional requestId and rejects extra fields", () => {
+    expect(agentClientMessageSchema.safeParse({ type: "background_shells" }).success).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({ type: "background_shells", requestId: "req-9" }).success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({ type: "background_shells", unexpected: 1 }).success,
+    ).toBe(false);
+  });
+
+  it("validates plan approval responses", () => {
+    expect(
+      agentClientMessageSchema.safeParse({ choice: "yolo", type: "plan_approval_response" })
+        .success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({
+        choice: "feedback",
+        feedback: "add tests",
+        type: "plan_approval_response",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({ choice: "nope", type: "plan_approval_response" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects multi-line git refs in code review requests", () => {
+    expect(
+      agentClientMessageSchema.safeParse({ from: "HEAD~2", to: "HEAD", type: "code_review_start" })
+        .success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({
+        from: "HEAD\n--upload-pack=x",
+        type: "code_review_start",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates rewind actions, file completion, and image uploads", () => {
+    expect(
+      agentClientMessageSchema.safeParse({
+        action: "code_and_conversation",
+        sha: "0123abc",
+        type: "rewind_action",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({
+        action: "everything",
+        sha: "0123abc",
+        type: "rewind_action",
+      }).success,
+    ).toBe(false);
+    expect(
+      agentClientMessageSchema.safeParse({
+        query: "src/comp",
+        requestId: "at_1",
+        type: "file_complete_request",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentClientMessageSchema.safeParse({
+        clientId: "img_1",
+        dataBase64: "aGVsbG8=",
+        name: "shot.png",
+        type: "image_upload",
+      }).success,
+    ).toBe(true);
+  });
 });
 
 const sessionId = "11111111-1111-4111-8111-111111111111";
@@ -183,5 +256,111 @@ describe("agentServerMessageSchema", () => {
         type: "interaction_resolved",
       }).success,
     ).toBe(true);
+  });
+
+  it("accepts the remote-parity interactive server messages", () => {
+    expect(
+      agentServerMessageSchema.safeParse({
+        planContent: "# Plan",
+        planPath: "/tmp/plan.md",
+        type: "plan_approval_request",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        current: "gpt-x",
+        models: [{ id: "gpt-x", name: null }],
+        status: "ready",
+        type: "model_list",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        current: "medium",
+        levels: ["low", "medium", "high"],
+        type: "thinking_form",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        snapshots: [
+          { conversation: true, date: "2026-01-01", message: "agent: t", sha: "abc1234" },
+        ],
+        type: "rewind_list",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({ data: null, type: "code_review_form" }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        message: "Grouping files",
+        phase: "grouping",
+        progress: 0.4,
+        type: "code_review_progress",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        matches: ["src/a.ts"],
+        requestId: "at_1",
+        type: "file_complete_response",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        clientId: "img_1",
+        path: "/tmp/u.png",
+        type: "image_saved",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        clientId: "img_1",
+        message: "too large",
+        type: "image_error",
+      }).success,
+    ).toBe(true);
+    expect(agentServerMessageSchema.safeParse({ entries: ["hi"], type: "history" }).success).toBe(
+      true,
+    );
+    expect(
+      agentServerMessageSchema.safeParse({
+        contextTokens: 10,
+        contextWindow: 100,
+        inputTokens: 1,
+        outputTokens: 2,
+        type: "usage",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({ output: "partial", toolId: "tb_1", type: "tool_output" })
+        .success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({
+        highWatermark: "12",
+        sessionId,
+        type: "session_replaced",
+      }).success,
+    ).toBe(true);
+    expect(
+      agentServerMessageSchema.safeParse({ mode: "PLAN", type: "permission_mode" }).success,
+    ).toBe(true);
+  });
+
+  it("accepts subagent/team/task activity broadcasts", () => {
+    for (const type of ["subagent", "team", "task"] as const) {
+      expect(
+        agentServerMessageSchema.safeParse({
+          action: "state",
+          payload: { list: [] },
+          type,
+        }).success,
+      ).toBe(true);
+    }
+    expect(
+      agentServerMessageSchema.safeParse({ action: "state", payload: { list: [] } }).success,
+    ).toBe(false);
   });
 });

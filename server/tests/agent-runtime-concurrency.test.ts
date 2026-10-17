@@ -42,7 +42,9 @@ const workspace: AgentWorkspaceModel = {
   memoryEnabled: true,
   modelOverride: null,
   permissionMode: "BYPASS_PERMISSIONS",
+  sandboxAutoAllow: false,
   sandboxEnabled: false,
+  thinkingLevel: null,
   updateTime: now,
   userId: 1n,
 };
@@ -334,6 +336,46 @@ describe("AgentRuntime concurrency", () => {
     release.resolve();
     await Promise.all([work, firstDispose]);
     expect(runtime.isBusy).toBe(false);
+  });
+
+  it("caps simultaneous connections per workspace", async () => {
+    const stores = {
+      interactions: { cancelPending: vi.fn().mockResolvedValue({ count: 0 }) },
+    } as unknown as AgentStores;
+    const runtime = new AgentRuntime({
+      appId: workspace.appId,
+      git: createGitRuntime(),
+      maxConnections: 2,
+      metrics: createMetricsService(),
+      stores,
+      workDir: "/tmp/yukino-agent-connection-cap-test",
+      workspace,
+    });
+
+    expect(runtime.addConnection(connection())).toBe(true);
+    expect(runtime.addConnection(connection())).toBe(true);
+    expect(runtime.addConnection(connection())).toBe(false);
+    expect(runtime.connectionCount).toBe(2);
+
+    await runtime.dispose();
+  });
+
+  it("drops queued follow-ups when the run is aborted", async () => {
+    const stores = {
+      interactions: { cancelPending: vi.fn().mockResolvedValue({ count: 0 }) },
+    } as unknown as AgentStores;
+    const runtime = new AgentRuntime({
+      appId: workspace.appId,
+      git: createGitRuntime(),
+      metrics: createMetricsService(),
+      stores,
+      workDir: "/tmp/yukino-agent-abort-test",
+      workspace,
+    });
+
+    // abort() must be safe before any session/handle exists and must not throw.
+    expect(() => runtime.abort()).not.toThrow();
+    await runtime.dispose();
   });
 });
 
@@ -792,4 +834,172 @@ describe("session resume status matrix", () => {
       expect(transactionClient.agentWorkspace.update).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("session turn claim", () => {
+  it("claims an idle session and reports loss when another turn owns it", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const stores = createAgentStores({
+      agentSession: { updateMany },
+    } as unknown as PrismaDatabaseClient);
+    const staleBefore = new Date("2026-01-01T00:00:00.000Z");
+
+    await expect(stores.sessions.claimTurn(session.id, staleBefore)).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith({
+      data: { lastActiveTime: expect.any(Date), status: "RUNNING" },
+      where: {
+        id: session.id,
+        OR: [{ status: "IDLE" }, { lastActiveTime: { lt: staleBefore }, status: "RUNNING" }],
+      },
+    });
+
+    updateMany.mockResolvedValue({ count: 0 });
+    await expect(stores.sessions.claimTurn(session.id, staleBefore)).resolves.toBe(false);
+  });
+});
+
+describe("rewind checkpoint persistence", () => {
+  const createMockHandle = () => ({
+    activeSkills: new Map<string, string>(),
+    backgroundTaskManager: { stopAll: vi.fn().mockResolvedValue(undefined) },
+    conv: {
+      getMessages: vi.fn().mockReturnValue([]),
+      truncateTo: vi.fn(),
+    },
+    registry: { dispose: vi.fn().mockResolvedValue(undefined) },
+    teamManager: { stopAll: vi.fn().mockResolvedValue(undefined) },
+  });
+
+  it("keeps surviving checkpoints instead of wiping runtimeMetadata", async () => {
+    // Checkpoints persist with string sequences (JSON cannot hold bigints).
+    const savedSession: AgentSessionModel = {
+      ...session,
+      runtimeMetadata: {
+        rewindPoints: [
+          { messageCount: 2, sequence: "10", sha: "sha-1", turnId: "t1" },
+          { messageCount: 4, sequence: "20", sha: "sha-2", turnId: "t2" },
+          { messageCount: 6, sequence: "30", sha: "sha-3", turnId: "t3" },
+        ],
+      },
+    };
+    const saveContext = vi.fn().mockResolvedValue(savedSession);
+    const setSequence = vi.fn().mockResolvedValue(savedSession);
+    const truncateAfter = vi.fn().mockResolvedValue({ count: 0 });
+    const stores = {
+      interactions: { cancelPending: vi.fn().mockResolvedValue({ count: 0 }) },
+      sessions: { findById: vi.fn().mockResolvedValue(savedSession), saveContext, setSequence },
+      transcript: { truncateAfter },
+    } as unknown as AgentStores;
+    const runtime = new AgentRuntime({
+      appId: workspace.appId,
+      git: createGitRuntime(),
+      metrics: createMetricsService(),
+      stores,
+      workDir: "/tmp/yukino-agent-rewind-test",
+      workspace,
+    });
+    const handle = createMockHandle();
+    // Bypass createHandle: inject the session id and a resolved handle promise.
+    (runtime as unknown as { sessionId: string }).sessionId = savedSession.id;
+    (runtime as unknown as { handlePromise: Promise<unknown> }).handlePromise =
+      Promise.resolve(handle);
+
+    await runtime.handleRewindAction("sha-2", "conversation_only", "req-1");
+
+    // Conversation truncated to the target checkpoint.
+    expect(handle.conv.truncateTo).toHaveBeenCalledWith(4);
+    expect(truncateAfter).toHaveBeenCalledWith(savedSession.id, 20n);
+    expect(setSequence).toHaveBeenCalledWith(savedSession.id, 20n);
+
+    // The regression: saveContext used to write `{ rewoundTo }` only, wiping the
+    // checkpoint list. It must now merge the surviving points (sequence <= 20).
+    expect(saveContext).toHaveBeenCalledTimes(1);
+    const savedArg = saveContext.mock.calls[0]?.[1] as {
+      runtimeMetadata: {
+        rewoundTo: string;
+        rewindPoints: Array<{ sequence: string; sha: string }>;
+      };
+    };
+    expect(savedArg.runtimeMetadata.rewoundTo).toBe("sha-2");
+    expect(savedArg.runtimeMetadata.rewindPoints).toEqual([
+      { messageCount: 2, sequence: "10", sha: "sha-1", turnId: "t1" },
+      { messageCount: 4, sequence: "20", sha: "sha-2", turnId: "t2" },
+    ]);
+
+    await runtime.dispose();
+  });
+
+  it("rejects a conversation rewind when no checkpoint matches the sha", async () => {
+    const savedSession: AgentSessionModel = { ...session, runtimeMetadata: {} };
+    const saveContext = vi.fn().mockResolvedValue(savedSession);
+    const stores = {
+      interactions: { cancelPending: vi.fn().mockResolvedValue({ count: 0 }) },
+      sessions: { findById: vi.fn().mockResolvedValue(savedSession), saveContext },
+      transcript: { truncateAfter: vi.fn().mockResolvedValue({ count: 0 }) },
+    } as unknown as AgentStores;
+    const runtime = new AgentRuntime({
+      appId: workspace.appId,
+      git: createGitRuntime(),
+      metrics: createMetricsService(),
+      stores,
+      workDir: "/tmp/yukino-agent-rewind-missing-test",
+      workspace,
+    });
+    (runtime as unknown as { sessionId: string }).sessionId = savedSession.id;
+    (runtime as unknown as { handlePromise: Promise<unknown> }).handlePromise = Promise.resolve(
+      createMockHandle(),
+    );
+    const send = vi.fn();
+    runtime.addConnection(connection(send));
+
+    await runtime.handleRewindAction("sha-missing", "conversation_only", "req-2");
+
+    expect(saveContext).not.toHaveBeenCalled();
+    const result = send.mock.calls
+      .map(([message]) => message)
+      .find((message) => message.type === "command_result");
+    expect(result).toMatchObject({
+      command: "rewind",
+      supported: false,
+      type: "command_result",
+    });
+    expect((result as { error?: string }).error).toContain("No conversation checkpoint");
+
+    await runtime.dispose();
+  });
+});
+
+describe("steering after abort", () => {
+  it("queues a follow-up instead of steering into a canceled run", async () => {
+    const stores = {
+      interactions: { cancelPending: vi.fn().mockResolvedValue({ count: 0 }) },
+    } as unknown as AgentStores;
+    const runtime = new AgentRuntime({
+      appId: workspace.appId,
+      git: createGitRuntime(),
+      metrics: createMetricsService(),
+      stores,
+      workDir: "/tmp/yukino-agent-steer-cancel-test",
+      workspace,
+    });
+    const steer = vi.fn();
+    // Simulate the post-abort unwind window: the turn is still marked busy and
+    // the dying agent is attached, but runCanceled is already set.
+    (runtime as unknown as { currentTurnId: string | null }).currentTurnId = "turn-x";
+    (runtime as unknown as { runCanceled: boolean }).runCanceled = true;
+    (
+      runtime as unknown as { currentAgent: { steer: (text: string) => void } | null }
+    ).currentAgent = { steer };
+
+    await runtime.submit({ input: "hello after stop", requestId: "r1", turnId: "t1" });
+
+    // Steering into the aborted loop would be persisted then discarded; the fix
+    // routes it to follow-ups so the post-abort drain replays it.
+    expect(steer).not.toHaveBeenCalled();
+    const followUps = (runtime as unknown as { followUps: Array<{ input: string }> }).followUps;
+    expect(followUps).toHaveLength(1);
+    expect(followUps[0]?.input).toBe("hello after stop");
+
+    await runtime.dispose();
+  });
 });

@@ -72,6 +72,87 @@ export type AgentError = {
   readonly code: string | undefined;
 };
 
+export type AgentPlanApproval = {
+  readonly planPath: string;
+  readonly planContent: string;
+};
+
+export type AgentModelList = {
+  readonly status: "loading" | "ready" | "empty" | "error";
+  readonly models: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string | null;
+  }>;
+  readonly current: string;
+};
+
+export type AgentThinkingForm = {
+  readonly current: string;
+  readonly levels: ReadonlyArray<string>;
+};
+
+export type AgentRewindSnapshot = {
+  readonly sha: string;
+  readonly message: string;
+  readonly date: string;
+  readonly conversation: boolean;
+};
+
+export type AgentCodeReviewProgress = {
+  readonly phase: string;
+  readonly message: string;
+  readonly progress: number | undefined;
+};
+
+export type AgentUsage = {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly contextTokens: number;
+  readonly contextWindow: number;
+};
+
+export type AgentSubagentInfo = {
+  readonly toolCallId: string;
+  readonly role: string;
+  readonly background: boolean;
+  readonly turnCount: number;
+  readonly status: "running" | "completed" | "failed" | "stopped";
+  readonly activeTools: ReadonlyArray<{
+    readonly toolId: string;
+    readonly toolName: string;
+  }>;
+};
+
+export type AgentBackgroundTaskInfo = {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly status: string;
+};
+
+export type AgentTeammateInfo = {
+  readonly name: string;
+  readonly teamName: string;
+  readonly status: string;
+  readonly spinnerVerb: string;
+  readonly lastMessage: string | null;
+  readonly turnCount: number;
+  readonly toolUseCount: number;
+  readonly tokenCount: number;
+};
+
+export type AgentActivity = {
+  readonly subagents: ReadonlyArray<AgentSubagentInfo>;
+  readonly tasks: ReadonlyArray<AgentBackgroundTaskInfo>;
+  readonly teammates: ReadonlyArray<AgentTeammateInfo>;
+};
+
+export type AgentImageResult = {
+  readonly clientId: string;
+  readonly path: string | undefined;
+  readonly message: string | undefined;
+};
+
 export type AgentTranscriptState = {
   readonly connectionState: AgentConnectionState;
   readonly runtimeStatus: AgentRuntimeStatus;
@@ -95,6 +176,26 @@ export type AgentTranscriptState = {
   readonly errors: ReadonlyArray<AgentError>;
   readonly filesRevision: number;
   readonly latestFileRevision: string | undefined;
+  // Remote-parity interactive surfaces
+  readonly planApproval: AgentPlanApproval | undefined;
+  readonly modelPicker: AgentModelList | undefined;
+  readonly thinkingPicker: AgentThinkingForm | undefined;
+  readonly rewindPicker: ReadonlyArray<AgentRewindSnapshot> | undefined;
+  readonly codeReviewOpen: boolean;
+  readonly codeReviewProgress: AgentCodeReviewProgress | undefined;
+  readonly history: ReadonlyArray<string>;
+  readonly usage: AgentUsage | undefined;
+  readonly model: string | undefined;
+  readonly thinkingLevel: string | undefined;
+  readonly activity: AgentActivity;
+  readonly steering: ReadonlyArray<string>;
+  readonly followUps: ReadonlyArray<string>;
+  readonly fileMatches:
+    | { readonly requestId: string; readonly matches: ReadonlyArray<string> }
+    | undefined;
+  readonly imageResults: ReadonlyArray<AgentImageResult>;
+  /** Bumped on session_replaced so the socket re-syncs from sequence 0. */
+  readonly resyncCounter: number;
 };
 
 export type AgentTranscriptAction =
@@ -112,6 +213,10 @@ export type AgentTranscriptAction =
       readonly currentTurnId: string | undefined;
       readonly pendingPermission: AgentPermissionRequest | undefined;
       readonly pendingQuestion: AgentQuestionRequest | undefined;
+      readonly model?: string;
+      readonly thinkingLevel?: string;
+      readonly contextTokens?: number;
+      readonly contextWindow?: number;
     }
   | {
       readonly type: "candidates";
@@ -160,7 +265,63 @@ export type AgentTranscriptAction =
       readonly code: string | undefined;
     }
   | { readonly type: "dismiss_error"; readonly id: number }
-  | { readonly type: "reset" };
+  | { readonly type: "reset" }
+  // Remote-parity interactive surfaces
+  | {
+      readonly type: "plan_approval_request";
+      readonly request: AgentPlanApproval;
+    }
+  | { readonly type: "close_plan_approval" }
+  | { readonly type: "model_list"; readonly list: AgentModelList }
+  | { readonly type: "close_model_picker" }
+  | { readonly type: "thinking_form"; readonly form: AgentThinkingForm }
+  | { readonly type: "close_thinking_picker" }
+  | {
+      readonly type: "rewind_list";
+      readonly snapshots: ReadonlyArray<AgentRewindSnapshot>;
+    }
+  | { readonly type: "close_rewind_picker" }
+  | { readonly type: "code_review_form" }
+  | { readonly type: "close_code_review" }
+  | {
+      readonly type: "code_review_progress";
+      readonly progress: AgentCodeReviewProgress;
+    }
+  | { readonly type: "history"; readonly entries: ReadonlyArray<string> }
+  | { readonly type: "usage"; readonly usage: AgentUsage }
+  | {
+      readonly type: "activity_subagents";
+      readonly list: ReadonlyArray<AgentSubagentInfo>;
+    }
+  | {
+      readonly type: "activity_tasks";
+      readonly list: ReadonlyArray<AgentBackgroundTaskInfo>;
+    }
+  | {
+      readonly type: "activity_teammates";
+      readonly list: ReadonlyArray<AgentTeammateInfo>;
+    }
+  | { readonly type: "steering_queued"; readonly text: string }
+  | { readonly type: "steering_delivered"; readonly text: string }
+  | { readonly type: "followup_queued"; readonly text: string }
+  | { readonly type: "followup_started"; readonly text: string }
+  | {
+      readonly type: "file_complete_response";
+      readonly requestId: string;
+      readonly matches: ReadonlyArray<string>;
+    }
+  | {
+      readonly type: "image_saved";
+      readonly clientId: string;
+      readonly path: string;
+    }
+  | {
+      readonly type: "image_error";
+      readonly clientId: string;
+      readonly message: string;
+    }
+  | { readonly type: "consume_image_result"; readonly clientId: string }
+  | { readonly type: "session_replaced" };
 
 export const initialAgentTranscriptState: AgentTranscriptState = {
   connectionState: "idle",
@@ -185,6 +346,22 @@ export const initialAgentTranscriptState: AgentTranscriptState = {
   errors: [],
   filesRevision: 0,
   latestFileRevision: undefined,
+  planApproval: undefined,
+  modelPicker: undefined,
+  thinkingPicker: undefined,
+  rewindPicker: undefined,
+  codeReviewOpen: false,
+  codeReviewProgress: undefined,
+  history: [],
+  usage: undefined,
+  model: undefined,
+  thinkingLevel: undefined,
+  activity: { subagents: [], tasks: [], teammates: [] },
+  steering: [],
+  followUps: [],
+  fileMatches: undefined,
+  imageResults: [],
+  resyncCounter: 0,
 };
 
 const MAX_COMMAND_RESULTS = 50;
@@ -291,6 +468,7 @@ export function agentTranscriptReducer(
       return {
         ...base,
         currentTurnId: action.currentTurnId,
+        model: action.model ?? base.model,
         pendingEvents: sessionChanged ? [] : base.pendingEvents,
         pendingPermission: action.pendingPermission,
         pendingQuestion: action.pendingQuestion,
@@ -301,6 +479,17 @@ export function agentTranscriptReducer(
         replaying: true,
         runtimeStatus: action.runtimeStatus,
         sessionId: action.sessionId,
+        thinkingLevel: action.thinkingLevel ?? base.thinkingLevel,
+        usage:
+          action.contextTokens !== undefined &&
+          action.contextWindow !== undefined
+            ? {
+                contextTokens: action.contextTokens,
+                contextWindow: action.contextWindow,
+                inputTokens: base.usage?.inputTokens ?? 0,
+                outputTokens: base.usage?.outputTokens ?? 0,
+              }
+            : base.usage,
       };
     }
     case "candidates":
@@ -328,7 +517,11 @@ export function agentTranscriptReducer(
             : (action.turnId ?? state.currentTurnId),
         runtimeStatus: action.status,
         statusDetail: action.detail,
-        ...(action.status === "idle" && { thinkingText: "" }),
+        ...(action.status === "idle" && {
+          followUps: [],
+          steering: [],
+          thinkingText: "",
+        }),
       };
     case "permission_mode":
       return { ...state, permissionMode: action.permissionMode };
@@ -370,6 +563,13 @@ export function agentTranscriptReducer(
     case "error":
       return {
         ...state,
+        // A failed review never emits a `done` progress phase, so release the
+        // progress strip / dialog running state here or both stay stuck until
+        // a page reload.
+        ...(action.code === "code_review_failed" ||
+        action.code === "code_review_invalid"
+          ? { codeReviewProgress: undefined }
+          : {}),
         errors: [
           ...state.errors.slice(-(MAX_ERRORS - 1)),
           { id: (sideItemId += 1), message: action.message, code: action.code },
@@ -379,6 +579,110 @@ export function agentTranscriptReducer(
       return {
         ...state,
         errors: state.errors.filter((error) => error.id !== action.id),
+      };
+    case "plan_approval_request":
+      return { ...state, planApproval: action.request };
+    case "close_plan_approval":
+      return { ...state, planApproval: undefined };
+    case "model_list":
+      return { ...state, modelPicker: action.list };
+    case "close_model_picker":
+      return { ...state, modelPicker: undefined };
+    case "thinking_form":
+      return { ...state, thinkingPicker: action.form };
+    case "close_thinking_picker":
+      return { ...state, thinkingPicker: undefined };
+    case "rewind_list":
+      return { ...state, rewindPicker: action.snapshots };
+    case "close_rewind_picker":
+      return { ...state, rewindPicker: undefined };
+    case "code_review_form":
+      return { ...state, codeReviewOpen: true };
+    case "close_code_review":
+      return { ...state, codeReviewOpen: false };
+    case "code_review_progress":
+      return { ...state, codeReviewProgress: action.progress };
+    case "history":
+      return { ...state, history: action.entries };
+    case "usage":
+      return { ...state, usage: action.usage };
+    case "activity_subagents":
+      return {
+        ...state,
+        activity: { ...state.activity, subagents: action.list },
+      };
+    case "activity_tasks":
+      return {
+        ...state,
+        activity: { ...state.activity, tasks: action.list },
+      };
+    case "activity_teammates":
+      return {
+        ...state,
+        activity: { ...state.activity, teammates: action.list },
+      };
+    case "steering_queued":
+      return { ...state, steering: [...state.steering, action.text] };
+    case "steering_delivered":
+      return {
+        ...state,
+        steering: state.steering.filter((text) => text !== action.text),
+      };
+    case "followup_queued":
+      return { ...state, followUps: [...state.followUps, action.text] };
+    case "followup_started": {
+      const index = state.followUps.indexOf(action.text);
+      if (index === -1) return state;
+      return {
+        ...state,
+        followUps: state.followUps.filter((_, i) => i !== index),
+      };
+    }
+    case "file_complete_response":
+      return {
+        ...state,
+        fileMatches: { matches: action.matches, requestId: action.requestId },
+      };
+    case "image_saved":
+      return {
+        ...state,
+        imageResults: [
+          ...state.imageResults,
+          { clientId: action.clientId, message: undefined, path: action.path },
+        ],
+      };
+    case "image_error":
+      return {
+        ...state,
+        imageResults: [
+          ...state.imageResults,
+          {
+            clientId: action.clientId,
+            message: action.message,
+            path: undefined,
+          },
+        ],
+      };
+    case "consume_image_result":
+      return {
+        ...state,
+        imageResults: state.imageResults.filter(
+          (result) => result.clientId !== action.clientId,
+        ),
+      };
+    case "session_replaced":
+      // The socket hook re-syncs from sequence 0 when resyncCounter changes.
+      return {
+        ...state,
+        events: [],
+        lastSequence: "0",
+        pendingEvents: [],
+        replayComplete: false,
+        replayHighWatermark: "0",
+        replaying: true,
+        resyncCounter: state.resyncCounter + 1,
+        streamingText: "",
+        thinkingText: "",
       };
     case "reset":
       return {

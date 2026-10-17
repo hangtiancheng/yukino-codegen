@@ -411,9 +411,14 @@ export type AgentSessionResumeResult = z.infer<
 export const agentWorkspaceSettingsSchema = z.object({
   permissionMode: agentPermissionModeSchema,
   sandboxEnabled: z.boolean(),
+  sandboxAutoAllow: z.boolean().optional(),
   memoryEnabled: z.boolean(),
   hooksEnabled: z.boolean(),
   modelOverride: z.string().nullable().optional(),
+  thinkingLevel: z
+    .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+    .nullable()
+    .optional(),
 });
 export type AgentWorkspaceSettings = z.infer<
   typeof agentWorkspaceSettingsSchema
@@ -422,9 +427,14 @@ export type AgentWorkspaceSettings = z.infer<
 export const agentSettingsUpdateRequestSchema = z.object({
   permissionMode: agentPermissionModeSchema.optional(),
   sandboxEnabled: z.boolean().optional(),
+  sandboxAutoAllow: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
   hooksEnabled: z.boolean().optional(),
   modelOverride: z.string().nullable().optional(),
+  thinkingLevel: z
+    .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+    .nullable()
+    .optional(),
 });
 export type AgentSettingsUpdateRequest = z.infer<
   typeof agentSettingsUpdateRequestSchema
@@ -676,6 +686,24 @@ export const agentPreviewErrorSchema = z.object({
 });
 export type AgentPreviewError = z.infer<typeof agentPreviewErrorSchema>;
 
+const agentGitRefSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((value) => !/[\r\n]/u.test(value), {
+    message: "Git refs must be a single line",
+  });
+
+export const agentPlanChoiceSchema = z.enum(["yolo", "manual", "feedback"]);
+export type AgentPlanChoice = z.infer<typeof agentPlanChoiceSchema>;
+
+export const agentRewindChoiceSchema = z.enum([
+  "code_and_conversation",
+  "conversation_only",
+  "code_only",
+]);
+export type AgentRewindChoice = z.infer<typeof agentRewindChoiceSchema>;
+
 const agentWireRequestIdSchema = z.string().min(1).max(128);
 const agentWireObjectSchema = z.record(z.string(), z.unknown());
 const agentWireRuntimeStatusSchema = z.enum([
@@ -810,6 +838,58 @@ export const agentClientMessageSchema = z.discriminatedUnion("type", [
       timestamp: z.number().int().nonnegative(),
     })
     .strict(),
+  z
+    .object({
+      type: z.literal("background_shells"),
+      requestId: agentWireRequestIdSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("plan_approval_response"),
+      requestId: agentWireRequestIdSchema.optional(),
+      choice: z.enum(["yolo", "manual", "feedback"]),
+      feedback: z.string().max(20_000).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("code_review_start"),
+      requestId: agentWireRequestIdSchema.optional(),
+      background: z.string().max(4_000).optional(),
+      from: agentGitRefSchema.optional(),
+      to: agentGitRefSchema.optional(),
+      commit: agentGitRefSchema.optional(),
+      excludePatterns: z.array(z.string().max(512)).max(64).optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("rewind_action"),
+      requestId: agentWireRequestIdSchema.optional(),
+      sha: z.string().regex(/^[a-f0-9]{7,64}$/u),
+      action: z.enum([
+        "code_and_conversation",
+        "conversation_only",
+        "code_only",
+      ]),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("file_complete_request"),
+      requestId: agentWireRequestIdSchema,
+      query: z.string().max(1024),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("image_upload"),
+      clientId: z.string().min(1).max(128),
+      name: z.string().min(1).max(256),
+      dataBase64: z.string().max(64 * 1024 * 1024),
+    })
+    .strict(),
 ]);
 export type AgentClientMessage = z.input<typeof agentClientMessageSchema>;
 
@@ -853,6 +933,15 @@ export const agentServerMessageSchema = z.union([
       runtimeStatus: agentWireRuntimeStatusSchema,
       currentTurnId: agentTurnIdSchema.nullable(),
       pendingInteractions: z.array(agentPendingInteractionWireSchema),
+      model: z.string().optional(),
+      thinkingLevel: z.string().optional(),
+      contextTokens: z.number().int().nonnegative().optional(),
+      contextWindow: z.number().int().nonnegative().optional(),
+      sandboxEnabled: z.boolean().optional(),
+      sandboxAutoAllow: z.boolean().optional(),
+      memoryEnabled: z.boolean().optional(),
+      hooksEnabled: z.boolean().optional(),
+      planApprovalPending: z.boolean().optional(),
     })
     .strict(),
   z
@@ -954,6 +1043,110 @@ export const agentServerMessageSchema = z.union([
       type: z.literal("heartbeat_ack"),
       requestId: agentWireRequestIdSchema.optional(),
       timestamp: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("plan_approval_request"),
+      planPath: z.string(),
+      planContent: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("model_list"),
+      status: z.enum(["loading", "ready", "empty", "error"]),
+      models: z.array(
+        z.object({ id: z.string(), name: z.string().nullable() }).strict(),
+      ),
+      current: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("thinking_form"),
+      current: z.string(),
+      levels: z.array(z.string()),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("rewind_list"),
+      snapshots: z.array(
+        z
+          .object({
+            sha: z.string(),
+            message: z.string(),
+            date: z.string(),
+            conversation: z.boolean(),
+          })
+          .strict(),
+      ),
+    })
+    .strict(),
+  z.object({ type: z.literal("code_review_form"), data: z.null() }).strict(),
+  z
+    .object({
+      type: z.literal("code_review_progress"),
+      phase: z.string(),
+      message: z.string(),
+      progress: z.number().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("file_complete_response"),
+      requestId: agentWireRequestIdSchema,
+      matches: z.array(z.string()).max(50),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("image_saved"),
+      clientId: z.string(),
+      path: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("image_error"),
+      clientId: z.string(),
+      message: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("history"),
+      entries: z.array(z.string()).max(500),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("usage"),
+      inputTokens: z.number().int().nonnegative(),
+      outputTokens: z.number().int().nonnegative(),
+      contextTokens: z.number().int().nonnegative(),
+      contextWindow: z.number().int().nonnegative(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("tool_output"),
+      toolId: z.string(),
+      output: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("session_replaced"),
+      sessionId: agentSessionIdSchema,
+      highWatermark: agentSequenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("permission_mode"),
+      mode: z.string(),
     })
     .strict(),
 ]);

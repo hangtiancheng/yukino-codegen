@@ -31,9 +31,14 @@ const settingsPatchSchema = z
       .enum(["DEFAULT", "ACCEPT_EDITS", "PLAN", "DONT_ASK", "BYPASS_PERMISSIONS"])
       .optional(),
     sandboxEnabled: z.boolean().optional(),
+    sandboxAutoAllow: z.boolean().optional(),
     memoryEnabled: z.boolean().optional(),
     hooksEnabled: z.boolean().optional(),
     modelOverride: z.string().max(256).nullable().optional(),
+    thinkingLevel: z
+      .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+      .nullable()
+      .optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: "No settings to update" });
 
@@ -52,7 +57,9 @@ const toSettingsVo = (workspace: AgentWorkspaceModel) => ({
   memoryEnabled: workspace.memoryEnabled,
   modelOverride: workspace.modelOverride,
   permissionMode: workspace.permissionMode,
+  sandboxAutoAllow: workspace.sandboxAutoAllow,
   sandboxEnabled: workspace.sandboxEnabled,
+  thinkingLevel: workspace.thinkingLevel,
 });
 
 const toSessionVo = (session: AgentSessionModel) => ({
@@ -101,13 +108,19 @@ export const registerAgentCapabilityRoutes = (
       const workspace = await workspaceOf(access.ownerId, access.appId);
       const patch = c.req.valid("json");
       const updated = await manager.stores.workspaces.updateSettings(workspace.id, patch);
-      const needsRebuild = patch.hooksEnabled !== undefined || patch.modelOverride !== undefined;
+      const needsRebuild =
+        patch.hooksEnabled !== undefined ||
+        patch.modelOverride !== undefined ||
+        patch.thinkingLevel !== undefined;
       if (needsRebuild) {
         await manager.invalidate(access.ownerId, access.appId);
       } else {
         manager.applySoftSettings(access.ownerId, access.appId, {
           ...(patch.permissionMode !== undefined && { permissionMode: patch.permissionMode }),
           ...(patch.sandboxEnabled !== undefined && { sandboxEnabled: patch.sandboxEnabled }),
+          ...(patch.sandboxAutoAllow !== undefined && {
+            sandboxAutoAllow: patch.sandboxAutoAllow,
+          }),
           ...(patch.memoryEnabled !== undefined && { memoryEnabled: patch.memoryEnabled }),
         });
       }

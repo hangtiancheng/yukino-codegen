@@ -1,10 +1,11 @@
-import { SlidersHorizontal } from "lucide-react";
+import { Activity, SlidersHorizontal } from "lucide-react";
 import { type ReactNode } from "react";
 import { cn } from "cn";
 import { Badge, Button } from "@/shared/ui";
 import type {
   AgentConnectionState,
   AgentRuntimeStatus,
+  AgentUsage,
 } from "../use-agent-transcript";
 
 const CONNECTION_LABEL: Record<AgentConnectionState, string> = {
@@ -30,6 +31,12 @@ export type AgentStatusBarProps = {
   readonly permissionMode: string | undefined;
   readonly readOnly: boolean;
   readonly onOpenCapabilities: () => void;
+  /** Remote parity extras */
+  readonly model: string | undefined;
+  readonly thinkingLevel: string | undefined;
+  readonly usage: AgentUsage | undefined;
+  readonly agentCount: number;
+  readonly onOpenActivity: () => void;
 };
 
 export function AgentStatusBar({
@@ -38,6 +45,11 @@ export function AgentStatusBar({
   permissionMode,
   readOnly,
   onOpenCapabilities,
+  model,
+  thinkingLevel,
+  usage,
+  agentCount,
+  onOpenActivity,
 }: AgentStatusBarProps): ReactNode {
   const connected = connectionState === "connected";
   const busy = runtimeStatus === "running" || runtimeStatus === "waiting";
@@ -71,6 +83,24 @@ export function AgentStatusBar({
       >
         {RUNTIME_LABEL[runtimeStatus]}
       </span>
+      {model !== undefined && model.length > 0 ? (
+        <span className="hidden max-w-40 truncate font-mono text-[10px] md:inline">
+          {model}
+        </span>
+      ) : null}
+      {thinkingLevel !== undefined && thinkingLevel.length > 0 ? (
+        <span className="bg-muted hidden rounded-md px-1.5 py-0.5 text-[10px] capitalize md:inline">
+          {thinkingLevel}
+        </span>
+      ) : null}
+      {usage !== undefined && usage.contextWindow > 0 ? (
+        <span
+          className="hidden font-mono text-[10px] tabular-nums sm:inline"
+          title="Context window occupancy"
+        >
+          {Math.round((usage.contextTokens / usage.contextWindow) * 100)}% ctx
+        </span>
+      ) : null}
       {permissionMode !== undefined ? (
         <span className="bg-muted text-muted-foreground ml-auto rounded-md px-1.5 py-0.5 font-mono text-[10px] tracking-wide uppercase">
           {permissionMode.replace(/_/g, " ").toLowerCase()}
@@ -83,6 +113,16 @@ export function AgentStatusBar({
           read-only
         </Badge>
       ) : null}
+      <Button
+        variant="ghost"
+        size="xs"
+        onClick={onOpenActivity}
+        aria-label="Open agents activity"
+        title="Subagents, background tasks, teammates"
+      >
+        <Activity data-icon="inline-start" />
+        {agentCount > 0 ? String(agentCount) : "Agents"}
+      </Button>
       <Button
         variant="ghost"
         size="xs"

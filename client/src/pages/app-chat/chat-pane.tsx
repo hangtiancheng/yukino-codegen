@@ -1,20 +1,26 @@
 import { AlertTriangle, X } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import type { AppId, VisualEditorElementInfo } from "@/shared/schemas";
 import { Button } from "@/shared/ui";
 import { useWorkspace } from "./workspace";
 import { AgentComposer } from "./chat/agent-composer";
+import { ActivityPanel } from "./chat/activity-panel";
+import { ModelPicker, ThinkingPicker } from "./chat/agent-pickers";
 import { AgentStatusBar } from "./chat/agent-status-bar";
 import { AgentTranscriptView } from "./chat/agent-transcript-view";
 import { CapabilityDrawer } from "./chat/capability-drawer";
+import { CodeReviewDialog } from "./chat/code-review-dialog";
 import {
   AgentQuestionDialog,
   PermissionDialog,
 } from "./chat/permission-dialog";
+import { PlanApprovalDialog } from "./chat/plan-approval-dialog";
+import { RewindDialog } from "./chat/rewind-dialog";
 import type {
   AgentRunOptions,
+  CodeReviewStartInput,
   PermissionDecision,
   QuestionAnswers,
 } from "./use-agent-socket";
@@ -38,6 +44,25 @@ export type ChatPaneProps = {
     interactionId: string,
     answers: QuestionAnswers,
   ) => boolean;
+  readonly respondPlanApproval: (
+    choice: "yolo" | "manual" | "feedback",
+    feedback?: string,
+  ) => boolean;
+  readonly startCodeReview: (options: CodeReviewStartInput) => boolean;
+  readonly rewind: (
+    sha: string,
+    action: "code_and_conversation" | "conversation_only" | "code_only",
+  ) => boolean;
+  readonly requestFileCompletions: (
+    requestId: string,
+    query: string,
+  ) => boolean;
+  readonly uploadImage: (
+    clientId: string,
+    name: string,
+    dataBase64: string,
+  ) => boolean;
+  readonly backgroundShells: () => boolean;
   readonly dispatch: React.Dispatch<AgentTranscriptAction>;
   readonly className?: string;
 };
@@ -55,12 +80,19 @@ export function ChatPane({
   abort,
   respondPermission,
   respondQuestion,
+  respondPlanApproval,
+  startCodeReview,
+  rewind,
+  requestFileCompletions,
+  uploadImage,
+  backgroundShells,
   dispatch,
   className,
 }: ChatPaneProps): ReactNode {
   const workspace = useWorkspace();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const busy = isAgentBusy(state.runtimeStatus);
@@ -69,30 +101,28 @@ export function ChatPane({
 
   const handleSend = async (): Promise<void> => {
     const text = input.trim();
-    if (
-      text.length === 0 ||
-      !canRun ||
-      busy ||
-      !connected ||
-      submittingRef.current
-    ) {
+    // While a turn runs the message becomes steering (Remote parity), so the
+    // busy guard only applies to the workspace flush below.
+    if (text.length === 0 || !canRun || !connected || submittingRef.current) {
       return;
     }
     const selected = workspace.selectedElement;
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      await workspace.flushTerminalSync();
-      await workspace.saveAll();
+      if (!busy) {
+        await workspace.flushTerminalSync();
+        await workspace.saveAll();
+      }
       const ok = run(
         text,
-        selected === undefined ? {} : { selectedElement: selected },
+        selected === undefined || busy ? {} : { selectedElement: selected },
       );
       if (ok) {
         setInput("");
-        workspace.clearSelection();
+        if (!busy) workspace.clearSelection();
       } else {
-        toast.error("Unable to start the agent run");
+        toast.error("Unable to reach the agent");
       }
     } catch (cause) {
       toast.error(
@@ -124,6 +154,24 @@ export function ChatPane({
     }
   };
 
+  // Ctrl+B parity: background running foreground agent shells.
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent): void => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        backgroundShells();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [backgroundShells]);
+
+  const agentCount =
+    state.activity.subagents.filter((agent) => agent.status === "running")
+      .length +
+    state.activity.tasks.filter((task) => task.status === "running").length +
+    state.activity.teammates.length;
+
   return (
     <section
       className={cn(
@@ -137,7 +185,20 @@ export function ChatPane({
         permissionMode={state.permissionMode}
         readOnly={state.readOnly || !canRun}
         onOpenCapabilities={() => setDrawerOpen(true)}
+        model={state.model}
+        thinkingLevel={state.thinkingLevel}
+        usage={state.usage}
+        agentCount={agentCount}
+        onOpenActivity={() => setActivityOpen((open) => !open)}
       />
+      {activityOpen ? (
+        <div className="border-border/70 max-h-64 shrink-0 overflow-hidden border-b">
+          <ActivityPanel
+            activity={state.activity}
+            onClose={() => setActivityOpen(false)}
+          />
+        </div>
+      ) : null}
       <AgentTranscriptView
         events={state.events}
         streamingText={state.streamingText}
@@ -145,6 +206,16 @@ export function ChatPane({
         runtimeStatus={state.runtimeStatus}
         replaying={state.replaying}
       />
+      {state.codeReviewProgress !== undefined ? (
+        <div className="border-border/70 bg-muted/20 flex items-center gap-2 border-t px-3 py-1.5 text-xs">
+          <span className="text-muted-foreground font-mono">
+            [review:{state.codeReviewProgress.phase}]
+          </span>
+          <span className="min-w-0 flex-1 truncate">
+            {state.codeReviewProgress.message}
+          </span>
+        </div>
+      ) : null}
       {lastCommand !== undefined ? (
         <div className="border-border/70 bg-muted/20 border-t px-3 py-1.5 text-xs">
           <span className="font-mono font-medium">/{lastCommand.command}</span>
@@ -198,6 +269,16 @@ export function ChatPane({
               : elementLabel(workspace.selectedElement)
           }
           onClearSelectedElement={workspace.clearSelection}
+          history={state.history}
+          steering={state.steering}
+          followUps={state.followUps}
+          fileMatches={state.fileMatches}
+          imageResults={state.imageResults}
+          onRequestFileCompletions={requestFileCompletions}
+          onUploadImage={uploadImage}
+          onConsumeImageResult={(clientId) =>
+            dispatch({ type: "consume_image_result", clientId })
+          }
         />
       </div>
       <PermissionDialog
@@ -207,6 +288,52 @@ export function ChatPane({
       <AgentQuestionDialog
         request={state.pendingQuestion}
         onSubmit={handleQuestion}
+      />
+      <PlanApprovalDialog
+        request={state.planApproval}
+        onChoose={(choice, feedback) => {
+          dispatch({ type: "close_plan_approval" });
+          if (!respondPlanApproval(choice, feedback)) {
+            toast.error("Unable to send the plan decision");
+          }
+        }}
+      />
+      <ModelPicker
+        state={state.modelPicker}
+        onSelect={(model) => {
+          dispatch({ type: "close_model_picker" });
+          run(`/model ${model}`);
+        }}
+        onClose={() => dispatch({ type: "close_model_picker" })}
+      />
+      <ThinkingPicker
+        form={state.thinkingPicker}
+        onSelect={(level) => {
+          dispatch({ type: "close_thinking_picker" });
+          run(`/thinking ${level}`);
+        }}
+        onClose={() => dispatch({ type: "close_thinking_picker" })}
+      />
+      <RewindDialog
+        snapshots={state.rewindPicker}
+        onAction={(sha, action) => {
+          dispatch({ type: "close_rewind_picker" });
+          if (!rewind(sha, action)) {
+            toast.error("Unable to send the rewind action");
+          }
+        }}
+        onClose={() => dispatch({ type: "close_rewind_picker" })}
+      />
+      <CodeReviewDialog
+        open={state.codeReviewOpen}
+        progress={state.codeReviewProgress}
+        onRun={(options) => {
+          dispatch({ type: "close_code_review" });
+          if (!startCodeReview(options)) {
+            toast.error("Unable to start the code review");
+          }
+        }}
+        onClose={() => dispatch({ type: "close_code_review" })}
       />
       <CapabilityDrawer
         appId={appId}

@@ -5,6 +5,7 @@ import { buildCodeOutputDir } from "../project/index.js";
 import { AgentRuntime } from "./agent-runtime.js";
 import { createGitRuntime, type GitRuntime } from "./git-runtime.js";
 import { type AgentStores, createAgentStores } from "./stores.js";
+import { TurnGate } from "./turn-gate.js";
 import { WorkspaceLockRegistry } from "./workspace-lock.js";
 
 export type RuntimeManagerDeps = Readonly<{
@@ -12,6 +13,10 @@ export type RuntimeManagerDeps = Readonly<{
   metrics: MetricsService;
   projectRootDir?: string;
   idleMs?: number;
+  /** Overrides for tests; default to the AGENT_* environment values. */
+  maxConcurrentTurns?: number;
+  maxConnectionsPerWorkspace?: number;
+  claimStaleMs?: number;
 }>;
 
 export type SoftSettingsPatch = Parameters<AgentRuntime["applySoftSettings"]>[0];
@@ -31,6 +36,11 @@ export const createRuntimeManager = (deps: RuntimeManagerDeps): RuntimeManagerAp
   const git: GitRuntime = createGitRuntime();
   const rootDir = deps.projectRootDir ?? process.cwd();
   const idleMs = deps.idleMs ?? env.AGENT_WORKSPACE_IDLE_MS;
+  // One gate per process: caps simultaneous agent loops across every user's
+  // workspace so a burst of concurrent chats cannot overload the LLM provider.
+  const turnGate = new TurnGate(deps.maxConcurrentTurns ?? env.AGENT_MAX_CONCURRENT_TURNS);
+  const maxConnections = deps.maxConnectionsPerWorkspace ?? env.AGENT_MAX_CONNECTIONS_PER_WORKSPACE;
+  const claimStaleMs = deps.claimStaleMs ?? env.AGENT_TURN_CLAIM_STALE_MS;
   const runtimes = new Map<string, AgentRuntime>();
   const lifecycleLocks = new WorkspaceLockRegistry();
   const lifecycleTasks = new Set<Promise<void>>();
@@ -68,9 +78,12 @@ export const createRuntimeManager = (deps: RuntimeManagerDeps): RuntimeManagerAp
       if (closing) throw new Error("Runtime manager is disposing");
       const runtime = new AgentRuntime({
         appId,
+        claimStaleMs,
         git,
+        maxConnections,
         metrics: deps.metrics,
         stores,
+        turnGate,
         workDir: workDirFor(appId),
         workspace,
       });

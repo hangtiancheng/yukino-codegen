@@ -40,6 +40,14 @@ describe("SERVER_SUPPORTED_COMMANDS", () => {
       "memory",
       "mcp",
       "rewind",
+      // Remote parity additions
+      "goal",
+      "plan",
+      "model",
+      "thinking",
+      "sandbox",
+      "worktree",
+      "code-review",
     ]) {
       expect(SERVER_SUPPORTED_COMMANDS.has(name)).toBe(true);
     }
@@ -47,7 +55,7 @@ describe("SERVER_SUPPORTED_COMMANDS", () => {
 
   it("does not contain unsupported commands", () => {
     expect(SERVER_SUPPORTED_COMMANDS.has("bogus")).toBe(false);
-    expect(SERVER_SUPPORTED_COMMANDS.size).toBe(9);
+    expect(SERVER_SUPPORTED_COMMANDS.size).toBe(16);
   });
 });
 

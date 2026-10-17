@@ -106,6 +106,8 @@ model AgentWorkspace {
   memoryEnabled    Boolean             @default(true) @map("memory_enabled")
   hooksEnabled     Boolean             @default(true) @map("hooks_enabled")
   modelOverride    String?             @map("model_override") @db.VarChar(256)
+  thinkingLevel    String?             @map("thinking_level") @db.VarChar(32)
+  sandboxAutoAllow Boolean             @default(false) @map("sandbox_auto_allow")
   createTime       DateTime            @default(now()) @map("create_time")
   updateTime       DateTime            @updatedAt @map("update_time")
 

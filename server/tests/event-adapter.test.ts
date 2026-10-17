@@ -239,4 +239,15 @@ describe("createEventAdapter - misc events", () => {
       },
     });
   });
+
+  it("emits ephemeral agent_status for steering_delivered", () => {
+    const adapter = createEventAdapter();
+    expect(first(adapter, { type: "steering_delivered", text: "hold on, use pnpm" })).toEqual({
+      persist: false,
+      message: {
+        type: "agent_status",
+        payload: { phase: "steering_delivered", text: "hold on, use pnpm" },
+      },
+    });
+  });
 });

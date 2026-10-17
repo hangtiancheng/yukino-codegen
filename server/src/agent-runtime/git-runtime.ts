@@ -34,6 +34,7 @@ export type GitRuntimeApi = Readonly<{
   createWorktree: (slug: string, gitRoot?: string) => Promise<Worktree.WorktreeResult>;
   ensureRepo: (dir: string) => Promise<boolean>;
   listSnapshots: (dir: string, limit?: number) => Promise<readonly GitSnapshot[]>;
+  listWorktrees: (dir: string) => Promise<readonly string[]>;
   removeWorktree: (path: string, branch: string, gitRoot: string) => Promise<void>;
   rewindTo: (dir: string, sha: string) => Promise<boolean>;
   snapshot: (dir: string, message: string) => Promise<string | undefined>;
@@ -101,10 +102,22 @@ export const createGitRuntime = (): GitRuntimeApi => {
     }
   };
 
+  /** /worktree parity: raw `git worktree list` lines for the workspace repo. */
+  const listWorktrees = async (dir: string): Promise<readonly string[]> => {
+    if (!isGitRepo(dir)) return [];
+    try {
+      const output = await git(dir, ["worktree", "list"]);
+      return output.length === 0 ? [] : output.split("\n");
+    } catch {
+      return [];
+    }
+  };
+
   return {
     createWorktree: (slug: string, gitRoot?: string) => Worktree.createAgentWorktree(slug, gitRoot),
     ensureRepo,
     listSnapshots,
+    listWorktrees,
     removeWorktree: (path: string, branch: string, gitRoot: string) =>
       Worktree.removeAgentWorktree(path, branch, gitRoot),
     rewindTo,

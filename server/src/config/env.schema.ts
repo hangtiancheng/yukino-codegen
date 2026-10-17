@@ -35,6 +35,13 @@ const baseEnvSchema = z.object({
     .int()
     .min(1024)
     .default(512 * 1024),
+  AGENT_MAX_CONCURRENT_TURNS: z.coerce.number().int().min(1).default(4),
+  AGENT_MAX_CONNECTIONS_PER_WORKSPACE: z.coerce.number().int().min(1).default(8),
+  AGENT_TURN_CLAIM_STALE_MS: z.coerce
+    .number()
+    .int()
+    .min(60_000)
+    .default(30 * 60 * 1000),
   GIT_SNAPSHOT_AUTHOR_NAME: z.string().min(1).default("Yukino Agent"),
   GIT_SNAPSHOT_AUTHOR_EMAIL: z.string().min(1).default("agent@yukino.local"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
