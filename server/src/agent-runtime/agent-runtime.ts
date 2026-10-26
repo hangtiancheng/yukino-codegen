@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   Agent,
@@ -24,6 +25,7 @@ import {
   Teams,
   Tools,
   Utils,
+  Workflow,
 } from "@yukino.js/yukino";
 import { env } from "../config/index.js";
 import type { AgentPermissionMode, AgentSessionStatus } from "../generated/prisma/enums.js";
@@ -33,6 +35,7 @@ import type { MetricsService } from "../observability/index.js";
 import {
   buildCommandCandidates,
   type CommandCandidate,
+  isExecutableCommand,
   parseCommand,
   SERVER_SUPPORTED_COMMANDS,
 } from "./command-dispatcher.js";
@@ -45,7 +48,6 @@ import {
   toPermissionPayload,
 } from "./interaction-broker.js";
 import { toYukinoMcpConfig } from "./mcp-config.js";
-import { type MemoryMaintenanceTasks, createMemoryMaintenanceTasks } from "./memory-runtime.js";
 import type { AgentServerMessage, AgentTranscriptEventMessage } from "./protocol.js";
 import { buildProviderConfig } from "./provider.js";
 import type { AgentStores } from "./stores.js";
@@ -200,6 +202,12 @@ export type RunTurnInput = Readonly<{
   requestId: string;
   turnId: string;
   input: string;
+  /**
+   * Transcript text when it differs from the model input (Remote
+   * userContent parity): slash commands persist the display form (e.g.
+   * "/ultracode <args>") while the conversation receives the expanded prompt.
+   */
+  displayText?: string;
   selectedElement?: Record<string, unknown>;
   previewError?: string;
   /** Multi-user attribution: the session user that submitted this turn. */
@@ -278,7 +286,7 @@ export class AgentRuntime {
   /** Resolved handle mirror for synchronous access paths. */
   private resolvedHandle: Remote.Server.RemoteAgentHandle | null = null;
   /** Cursor-based background memory extraction/consolidation (Remote parity). */
-  private memoryTasks: MemoryMaintenanceTasks | null = null;
+  private memoryTasks: Memory.Background.BackgroundMemoryTasks | null = null;
   /** Live subagent/fork activity keyed by toolCallId (Remote parity). */
   private readonly subagentStates = new Map<string, SubagentActivity>();
   private activityAttached = false;
@@ -298,7 +306,8 @@ export class AgentRuntime {
 
   // Controllers for auxiliary flows that abort() must cancel.
   private modelListController: AbortController | null = null;
-  private reviewController: AbortController | null = null;
+  private subagentCommandController: AbortController | null = null;
+  private compactController: AbortController | null = null;
   private forkController: AbortController | null = null;
   private userBashController: AbortController | null = null;
 
@@ -456,9 +465,11 @@ export class AgentRuntime {
         this.handleSubagentEvent(event);
       },
     });
-    handle.checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
     await this.rehydrate(handle);
     this.resolvedHandle = handle;
+    // The handle checker starts in the default mode; apply the persisted
+    // workspace settings (mode, sandbox, plan file) before anything can use it.
+    this.syncHandleChecker();
     this.attachActivityBridge(handle);
     return handle;
   }
@@ -515,6 +526,45 @@ export class AgentRuntime {
       this.broadcast({ status: "running", type: "runtime_status", sessionId });
     }
   };
+
+  /**
+   * Keeps the handle-level checker in sync with the workspace settings. The
+   * main loop builds its own per-turn checker, but library-internal paths
+   * (skill forks, teammates, workflow runs) fall back to `handle.checker`,
+   * which is created in the default mode (Remote applyPermissionMode parity).
+   */
+  private syncHandleChecker(): void {
+    const handle = this.resolvedHandle;
+    if (handle === null) return;
+    const mode = toYukinoMode(this.workspace.permissionMode);
+    if (mode === "plan") {
+      if (handle.checker.mode !== "plan") handle.checker.enterPlanMode();
+    } else if (handle.checker.mode === "plan") {
+      handle.checker.exitPlanMode(mode);
+    } else {
+      handle.checker.mode = mode;
+    }
+    handle.checker.sandboxEnabled = this.workspace.sandboxEnabled;
+    handle.checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
+    handle.checker.planFilePath = this.planFilePath;
+  }
+
+  /**
+   * Per-run permission checker: mode, sandbox flags, and the plan file are
+   * applied fresh each turn, so soft-settings changes take effect without
+   * recreating the handle. The plan file carries across turns so
+   * ExitPlanMode writes and the approval dialog read the same path.
+   */
+  private createTurnChecker(): Permissions.PermissionChecker {
+    const checker = new Permissions.PermissionChecker(
+      this.workDir,
+      toYukinoMode(this.workspace.permissionMode),
+    );
+    checker.sandboxEnabled = this.workspace.sandboxEnabled;
+    checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
+    checker.planFilePath = this.planFilePath;
+    return checker;
+  }
 
   private buildPermissionCallback(checker: Permissions.PermissionChecker, turnId: string) {
     return async (
@@ -746,6 +796,7 @@ export class AgentRuntime {
         memoryEnabled: patch.memoryEnabled,
       }),
     };
+    this.syncHandleChecker();
     // RemoteServer.applyPermissionMode parity: plan entry/exit carry reminders.
     if (patch.permissionMode !== undefined && patch.permissionMode !== previousMode) {
       if (patch.permissionMode === "PLAN") {
@@ -784,7 +835,8 @@ export class AgentRuntime {
     }
     this.currentAbort?.abort();
     this.modelListController?.abort();
-    this.reviewController?.abort();
+    this.subagentCommandController?.abort();
+    this.compactController?.abort();
     this.forkController?.abort();
     this.userBashController?.abort();
     // RemoteServer.cancelActiveRun parity: settle broker-owned waits so an
@@ -986,7 +1038,7 @@ export class AgentRuntime {
       }
       if (input !== null && input.persistedAsSteering !== true) {
         await this.emitPersist(turnId, "user_message", {
-          text: input.input,
+          text: input.displayText ?? input.input,
           ...(input.actorUserId !== undefined && { actorUserId: input.actorUserId }),
           ...(input.selectedElement !== undefined && {
             selectedElement: input.selectedElement,
@@ -1026,15 +1078,7 @@ export class AgentRuntime {
       });
 
       const adapter = createEventAdapter();
-      const checker = new Permissions.PermissionChecker(
-        this.workDir,
-        toYukinoMode(this.workspace.permissionMode),
-      );
-      checker.sandboxEnabled = this.workspace.sandboxEnabled;
-      checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
-      // The checker is rebuilt per turn; carry the plan file across turns so
-      // ExitPlanMode writes and the approval dialog read the same path.
-      checker.planFilePath = this.planFilePath;
+      const checker = this.createTurnChecker();
 
       if (input !== null) {
         // @-refs expand exactly like the terminal/Remote: the transcript keeps
@@ -1214,8 +1258,10 @@ export class AgentRuntime {
     // Remote BackgroundMemoryTasks parity: one cursor-tracked task set per
     // runtime, created lazily so extraction only covers the new tail and
     // in-flight LLM calls are settled on dispose.
-    this.memoryTasks ??= createMemoryMaintenanceTasks(handle.client, this.workDir, (message) => {
-      this.resolvedHandle?.conv.addSystemReminder(message);
+    this.memoryTasks ??= new Memory.Background.BackgroundMemoryTasks(handle.client, this.workDir, {
+      appendSystem: (message) => {
+        this.resolvedHandle?.conv.addSystemReminder(message);
+      },
     });
     this.memoryTasks.run(conv);
   }
@@ -1504,6 +1550,7 @@ export class AgentRuntime {
       this.broadcast({ mode: "PLAN", type: "permission_mode" });
     }
     const planPath = this.resolvePlanFilePath();
+    this.syncHandleChecker();
     // Re-entering plan mode with an existing plan file replays the reminder.
     if (this.hasExitedPlanMode && PlanFile.planExists({ planFilePath: this.planFilePath })) {
       const reminder = Prompt.PlanMode.buildPlanModeReentryReminder(planPath, true);
@@ -1558,6 +1605,7 @@ export class AgentRuntime {
       permissionMode: nextMode,
     });
     this.workspace = { ...this.workspace, permissionMode: nextMode };
+    this.syncHandleChecker();
     this.resolvedHandle?.conv.addSystemReminder(
       Prompt.PlanMode.buildPlanModeExitReminder(this.planFilePath, planContent.length > 0),
     );
@@ -1687,7 +1735,10 @@ export class AgentRuntime {
         handle.client.getThinkingLevel?.() ??
         this.workspace.thinkingLevel ??
         Config.Constants.DEFAULT_THINKING_LEVEL,
-      levels: [...(handle.client.getSupportedThinkingLevels?.() ?? [])],
+      levels: [
+        ...(handle.client.getSupportedThinkingLevels?.() ??
+          Config.ProviderConfig.getSupportedThinkingLevels(handle.provider)),
+      ],
       type: "thinking_form",
     });
   }
@@ -1751,6 +1802,7 @@ export class AgentRuntime {
           this.workspace = workspace;
         })
         .catch(() => undefined);
+      this.syncHandleChecker();
       this.sendCommandResult(requestId, "sandbox", true, { result: { sandbox: "OFF" } });
       return;
     }
@@ -1762,7 +1814,9 @@ export class AgentRuntime {
         bashTool.sandbox = sandbox ?? null;
         bashTool.sandboxRequired = true;
         bashTool.sandboxConfig = {
-          allowWrite: [handle.cwd],
+          // Remote configureBashSandbox parity: tools need tmpdir for scratch
+          // files in addition to the workspace.
+          allowWrite: [handle.cwd, tmpdir()],
           denyWrite: [],
           networkEnabled: true,
         };
@@ -1776,6 +1830,7 @@ export class AgentRuntime {
           this.workspace = workspace;
         })
         .catch(() => undefined);
+      this.syncHandleChecker();
       this.sendCommandResult(requestId, "sandbox", true, {
         result: {
           available,
@@ -2012,108 +2067,239 @@ export class AgentRuntime {
     });
   }
 
-  // ─────────────────────────── Review (/review subagent) ───────────────────────────
+  // ─────────────── Subagent command flows (/review, agent-backed commands) ───────────────
 
   /**
-   * Runs the built-in read-only review subagent (the library replaced its
-   * structured CodeReview runner with this prompt-driven /review design).
+   * Runs a command's prompt in a foreground subagent (Remote prompt-command
+   * with `agent` parity): /review uses the built-in read-only reviewer, and
+   * registry commands may declare any other named agent.
    */
-  private async runReviewAgent(
+  private runCommandSubagent(
     handle: Remote.Server.RemoteAgentHandle,
     turnId: string,
+    agentName: string,
     prompt: string,
     displayText: string,
     abortSignal: AbortSignal,
   ): Promise<Tools.ToolResult> {
-    // Per-turn checker exactly like executeTurn: the review agent's git
-    // commands go through the same permission and sandbox gates.
-    const checker = new Permissions.PermissionChecker(
-      this.workDir,
-      toYukinoMode(this.workspace.permissionMode),
-    );
-    checker.sandboxEnabled = this.workspace.sandboxEnabled;
-    checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
-    checker.planFilePath = this.planFilePath;
-    return Commands.Subagent.runSubagentCommand(
-      Subagent.Constants.REVIEW_AGENT_NAME,
-      prompt,
-      displayText,
-      {
-        abortSignal,
-        conversation: handle.conv,
-        cwd: handle.cwd,
-        onEvent: (event) => {
-          // Broadcast-only bridge (the structured runner behaved the same):
-          // the report itself is persisted by the caller as an assistant_message.
-          if (event.type === "tool_use") {
-            this.broadcast({
-              payload: { args: event.args, toolId: event.toolId, toolName: event.toolName },
-              type: "tool_use",
-            });
-          } else if (event.type === "tool_result") {
-            this.broadcast({
-              payload: {
-                elapsed: event.elapsed,
-                isError: event.isError,
-                output: event.output,
-                toolId: event.toolId,
-                toolName: event.toolName,
-              },
-              type: "tool_result",
-            });
-          }
-        },
-        onPermissionRequest: this.buildPermissionCallback(checker, turnId),
-        permissionChecker: checker,
-        registry: handle.registry,
-        sessionId: handle.sessionId,
+    // Per-turn checker exactly like executeTurn: the subagent's commands go
+    // through the same permission and sandbox gates.
+    const checker = this.createTurnChecker();
+    return Commands.Subagent.runSubagentCommand(agentName, prompt, displayText, {
+      abortSignal,
+      conversation: handle.conv,
+      cwd: handle.cwd,
+      onEvent: (event) => {
+        // Broadcast-only bridge: the report itself is persisted by the caller
+        // as an assistant_message.
+        if (event.type === "tool_use") {
+          this.broadcast({
+            payload: { args: event.args, toolId: event.toolId, toolName: event.toolName },
+            type: "tool_use",
+          });
+        } else if (event.type === "tool_result") {
+          this.broadcast({
+            payload: {
+              elapsed: event.elapsed,
+              isError: event.isError,
+              output: event.output,
+              toolId: event.toolId,
+              toolName: event.toolName,
+            },
+            type: "tool_result",
+          });
+        }
       },
-    );
+      onPermissionRequest: this.buildPermissionCallback(checker, turnId),
+      permissionChecker: checker,
+      registry: handle.registry,
+      sessionId: handle.sessionId,
+    });
   }
 
-  /** Runs the library /review prompt command through the review subagent. */
-  private async runReviewCommand(
-    args: string,
+  /** Runs a subagent-backed command as its own turn with transcript entries. */
+  private async runSubagentCommandFlow(
+    agentName: string,
+    prompt: string,
+    displayText: string,
+    commandName: string,
     requestId: string,
     actorUserId?: string,
   ): Promise<void> {
     if (this.isBusy) {
-      this.sendCommandResult(requestId, "review", false, {
+      this.sendCommandResult(requestId, commandName, false, {
         error: "A run is already in progress.",
       });
       return;
     }
     const controller = new AbortController();
-    this.reviewController = controller;
+    this.subagentCommandController = controller;
     await this.runLockedTask(async () => {
       const handle = await this.ensureHandle();
       const turnId = randomUUID();
       this.currentTurnId = turnId;
-      const displayText = args.trim().length > 0 ? `/review ${args.trim()}` : "/review";
       try {
         await this.emitPersist(turnId, "user_message", {
           text: displayText,
           ...(actorUserId !== undefined && { actorUserId }),
         });
-        const result = await this.runReviewAgent(
+        const result = await this.runCommandSubagent(
           handle,
           turnId,
-          buildReviewPrompt(args),
+          agentName,
+          prompt,
           displayText,
           controller.signal,
         );
         if (result.isError) throw new Error(result.output);
         await this.emitPersist(turnId, "assistant_message", { text: result.output });
-        this.sendCommandResult(requestId, "review", true, {
-          result: { message: "Review complete" },
+        this.sendCommandResult(requestId, commandName, true, {
+          result: { message: `/${commandName} complete` },
         });
       } catch (error) {
-        this.sendCommandResult(requestId, "review", false, {
+        this.sendCommandResult(requestId, commandName, false, {
           error: Utils.asErrorString(error),
         });
       } finally {
-        this.reviewController = null;
+        this.subagentCommandController = null;
         this.currentTurnId = null;
+      }
+    });
+  }
+
+  // ─────────────── Generic registry command dispatch (Remote parity) ───────────────
+
+  /** Command context handed to library command handlers (Remote buildCommandContext parity). */
+  private buildCommandContext(
+    handle: Remote.Server.RemoteAgentHandle,
+    args: string,
+  ): Commands.Commands.CommandContext {
+    return {
+      args,
+      availableThinkingLevels: () =>
+        handle.client.getSupportedThinkingLevels?.() ??
+        Config.ProviderConfig.getSupportedThinkingLevels(handle.provider),
+      cwd: handle.cwd,
+      memoryList: () =>
+        this.workspace.memoryEnabled ? handle.memoryManager.loadAll().map((file) => file.name) : [],
+      model: handle.provider.model,
+      permissionMode: () => toYukinoMode(this.workspace.permissionMode),
+      persistThinkingLevel: (level) => {
+        // Best-effort DB persistence: workspace settings are the server-side
+        // counterpart of the library's config.yaml.
+        void this.stores.workspaces
+          .updateSettings(this.workspaceId, { thinkingLevel: level })
+          .then((workspace) => {
+            this.workspace = workspace;
+          })
+          .catch(() => undefined);
+      },
+      ...(handle.client.setThinkingLevel !== undefined && {
+        setThinkingLevel: (level: Config.ProviderConfig.ThinkingLevel) => {
+          handle.client.setThinkingLevel?.(level);
+          handle.provider.thinking = handle.client.getThinkingLevel?.() ?? level;
+        },
+      }),
+      thinkingLevel: () =>
+        (handle.client.getThinkingLevel?.() ??
+          this.workspace.thinkingLevel ??
+          Config.Constants.DEFAULT_THINKING_LEVEL) as Config.ProviderConfig.ThinkingLevel,
+      tokenCount: () => [this.lastUsage.inputTokens, this.lastUsage.outputTokens] as const,
+      toolCount: () => handle.registry.listTools().length,
+    };
+  }
+
+  /**
+   * Executes library-registry commands the server does not special-case:
+   * prompt commands (ultracode, user commands, named workflows, inline
+   * skills), direct fork-mode skill invocations, and local commands
+   * (RemoteServer.handleSlashCommand generic dispatch parity).
+   */
+  private async dispatchRegistryCommand(
+    handle: Remote.Server.RemoteAgentHandle,
+    name: string,
+    args: string,
+    requestId: string,
+    actorUserId?: string,
+  ): Promise<void> {
+    const command = handle.cmdRegistry.find(name);
+    if (command === undefined || !isExecutableCommand(command)) {
+      this.sendCommandResult(requestId, name, false, {
+        error: `Command /${name} is not supported by the server runtime`,
+      });
+      return;
+    }
+    if (command.type === "local") {
+      const message = command.handler(this.buildCommandContext(handle, args));
+      this.sendCommandResult(requestId, name, true, {
+        result: { message, ...(command.markdown === true && { markdown: true }) },
+      });
+      return;
+    }
+    if (command.type === "skill_fork") {
+      const skill = handle.skillCatalog?.get(name);
+      if (skill === undefined) {
+        this.sendCommandResult(requestId, name, false, { error: `Unknown skill: ${name}` });
+        return;
+      }
+      await this.runSkillFork(handle, skill, args, requestId);
+      return;
+    }
+    if (command.type === "prompt") {
+      const prompt = command.handler(this.buildCommandContext(handle, args));
+      const displayText = args.length > 0 ? `/${name} ${args}` : `/${name}`;
+      if (command.agent !== undefined) {
+        await this.runSubagentCommandFlow(
+          command.agent,
+          prompt,
+          displayText,
+          name,
+          requestId,
+          actorUserId,
+        );
+        return;
+      }
+      await this.runTurn({
+        displayText,
+        input: prompt,
+        requestId,
+        turnId: randomUUID(),
+        ...(actorUserId !== undefined && { actorUserId }),
+      });
+      return;
+    }
+    this.sendCommandResult(requestId, name, false, {
+      error: `Command /${name} is not supported by the server runtime`,
+    });
+  }
+
+  /** /workflows — the library workflow-run CLI (Remote handleLocalUICommand parity). */
+  private async runWorkflowCommand(
+    handle: Remote.Server.RemoteAgentHandle,
+    args: string,
+    requestId: string,
+  ): Promise<void> {
+    const service = Workflow.Wiring.getWorkflowService(handle.registry);
+    if (service === undefined) {
+      this.sendCommandResult(requestId, "workflows", false, {
+        error: "Workflow service is not initialized",
+      });
+      return;
+    }
+    await this.runLockedTask(async () => {
+      const turnId = randomUUID();
+      const checker = this.createTurnChecker();
+      try {
+        const message = await service.command(args, {
+          cwd: handle.cwd,
+          onPermissionRequest: this.buildPermissionCallback(checker, turnId),
+          permissionChecker: checker,
+        });
+        this.sendCommandResult(requestId, "workflows", true, { result: { message } });
+      } catch (error) {
+        this.sendCommandResult(requestId, "workflows", false, {
+          error: Utils.asErrorString(error),
+        });
       }
     });
   }
@@ -2355,19 +2541,21 @@ export class AgentRuntime {
       this.planApprovalTimer = null;
     }
     this.modelListController?.abort();
-    this.reviewController?.abort();
+    this.subagentCommandController?.abort();
+    this.compactController?.abort();
     this.forkController?.abort();
     this.userBashController?.abort();
     if (this.handlePromise !== undefined) {
       const handle = await this.handlePromise.catch(() => undefined);
       if (handle !== undefined) {
-        await handle.backgroundTaskManager.stopAll().catch(() => undefined);
-        await handle.teamManager.stopAll().catch(() => undefined);
-        await handle.mcpManager?.disconnectAll().catch(() => undefined);
+        // Server addition: the library handle disposal does not fire hooks.
         await handle.hookEngine?.fire("shutdown", { event: "shutdown" }).catch(() => undefined);
-        // RemoteServer.stop parity: dispose the registry so LSP servers and
-        // other tool-owned child processes do not outlive the workspace.
-        await handle.registry.dispose().catch(() => undefined);
+        // RemoteServer.stop parity: handle.dispose() aborts the in-flight
+        // loop, stops background tasks, disposes the team manager (which also
+        // unsubscribes its permission listener), disconnects MCP servers, and
+        // disposes the registry so LSP servers and other tool-owned child
+        // processes do not outlive the workspace.
+        await handle.dispose().catch(() => undefined);
       }
     }
     // Remote stopMemoryTasks parity: settle in-flight memory LLM calls so they
@@ -2421,7 +2609,10 @@ export class AgentRuntime {
   }
 
   getCommandCandidates(): CommandCandidate[] {
-    return buildCommandCandidates();
+    // The live registry knows workspace-specific commands (named workflows,
+    // wired skills, user commands); fall back to the static default registry
+    // until the handle exists.
+    return buildCommandCandidates(this.resolvedHandle?.cmdRegistry);
   }
 
   private async startNewSession(): Promise<string> {
@@ -2458,12 +2649,6 @@ export class AgentRuntime {
       return;
     }
     const { args, name } = parsed;
-    if (!SERVER_SUPPORTED_COMMANDS.has(name)) {
-      this.sendCommandResult(requestId, name, false, {
-        error: `Command /${name} is not supported by the server runtime`,
-      });
-      return;
-    }
 
     if (name === "help") {
       this.sendCommandResult(requestId, name, true, {
@@ -2473,6 +2658,14 @@ export class AgentRuntime {
     }
 
     const handle = await this.ensureHandle();
+
+    // Generic library-registry dispatch (RemoteServer.handleSlashCommand
+    // parity): ultracode, user commands, named workflow commands, and direct
+    // skill invocations execute from the handle's registry.
+    if (!SERVER_SUPPORTED_COMMANDS.has(name)) {
+      await this.dispatchRegistryCommand(handle, name, args, requestId, actorUserId);
+      return;
+    }
 
     if (name === "skill") {
       await this.runSkillCommand(handle, args, requestId);
@@ -2486,12 +2679,24 @@ export class AgentRuntime {
       return;
     }
     if (name === "memory") {
+      // Remote buildMemoryStatus parity: `/memory clear` wipes the workspace
+      // memory store; the listing reports the auto-memory switch alongside.
+      if (args.trim().toLowerCase() === "clear") {
+        handle.memoryManager.clear();
+        this.sendCommandResult(requestId, name, true, {
+          result: { cleared: true, message: "All memories cleared." },
+        });
+        return;
+      }
       this.sendCommandResult(requestId, name, true, {
-        result: handle.memoryManager.loadAll().map((file) => ({
-          description: file.description,
-          name: file.name,
-          type: file.type,
-        })),
+        result: {
+          autoMemory: this.workspace.memoryEnabled ? "enabled" : "disabled",
+          memories: handle.memoryManager.loadAll().map((file) => ({
+            description: file.description,
+            name: file.name,
+            type: file.type,
+          })),
+        },
       });
       return;
     }
@@ -2606,18 +2811,50 @@ export class AgentRuntime {
       this.sendCommandResult(requestId, name, true, { result: { worktrees } });
       return;
     }
+    if (name === "workflows") {
+      await this.runWorkflowCommand(handle, args, requestId);
+      return;
+    }
     if (name === "review") {
-      await this.runReviewCommand(args, requestId, actorUserId);
+      const displayText = args.trim().length > 0 ? `/review ${args.trim()}` : "/review";
+      await this.runSubagentCommandFlow(
+        Subagent.Constants.REVIEW_AGENT_NAME,
+        buildReviewPrompt(args),
+        displayText,
+        "review",
+        requestId,
+        actorUserId,
+      );
       return;
     }
     if (name === "clear") {
       await this.runLockedTask(async () => {
-        handle.conv.reset();
-        // Remote clearConversation parity: stop the memory tasks so the next
-        // run starts a fresh cursor over the cleared conversation.
+        // Remote /clear parity: stop background work before rotating the
+        // session so no task or teammate keeps running (and notifying) into
+        // the new session.
+        await Promise.allSettled([
+          handle.backgroundTaskManager.stopAll(),
+          handle.teamManager.stopAll(),
+        ]);
+        // Remote clearConversation parity: rotate every piece of
+        // session-scoped state — session id, file history, file state cache,
+        // task board, recovery state, active skills, MCP announcements —
+        // together with the conversation.
+        await handle.clearConversation();
+        // The runtime keeps its own announcement mirror for syncMcpInstructions;
+        // the cleared conversation must receive them again on the next turn.
+        this.mcpAnnounced.clear();
+        // Stop the runtime-owned memory tasks so the next run starts a fresh
+        // cursor over the cleared conversation.
         const memoryTasks = this.memoryTasks;
         this.memoryTasks = null;
         await memoryTasks?.dispose().catch(() => undefined);
+        this.subagentStates.clear();
+        this.broadcast({
+          action: "state",
+          payload: { list: [] },
+          type: "subagent",
+        });
         await this.startNewSession();
         // Remote clearConversation parity: plan state rotates with the session.
         this.planFilePath = "";
@@ -2649,16 +2886,32 @@ export class AgentRuntime {
         // prompt must describe exactly the tools the next loop will see.
         const protocol = handle.client.protocol ?? "anthropic";
         const filter = this.composeToolFilter(handle);
-        const result = await Compact.Compact.forceCompact(
-          handle.conv,
-          handle.client,
-          handle.recoveryState,
-          handle.registry.listVisibleToolNames(protocol, filter),
-          handle.registry.getAllSchemas(protocol, filter),
-        );
-        this.sendCommandResult(requestId, name, true, {
-          result: { compacted: result.compacted, message: result.message },
-        });
+        const controller = new AbortController();
+        this.compactController = controller;
+        try {
+          const result = await Compact.Compact.forceCompact(
+            handle.conv,
+            handle.client,
+            handle.recoveryState,
+            handle.registry.listVisibleToolNames(protocol, filter),
+            handle.registry.getAllSchemas(protocol, filter),
+            // The server persists transcripts in the database, not session files.
+            "",
+            controller.signal,
+            // `/compact <instructions>` steers what the summary keeps (Remote parity).
+            args.trim(),
+          );
+          await this.emitPersist(null, "compact", { message: result.message });
+          this.sendCommandResult(requestId, name, true, {
+            result: { compacted: result.compacted, message: result.message },
+          });
+        } catch (error) {
+          this.sendCommandResult(requestId, name, false, {
+            error: Utils.asErrorString(error),
+          });
+        } finally {
+          this.compactController = null;
+        }
       });
       return;
     }

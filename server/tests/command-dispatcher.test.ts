@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCommandCandidates,
+  isExecutableCommand,
   isSkillCommand,
   parseCommand,
   SERVER_SUPPORTED_COMMANDS,
+  TERMINAL_ONLY_COMMANDS,
 } from "../src/agent-runtime/command-dispatcher.js";
 
 describe("parseCommand", () => {
@@ -47,6 +49,7 @@ describe("SERVER_SUPPORTED_COMMANDS", () => {
       "thinking",
       "sandbox",
       "worktree",
+      "workflows",
       // Library /review prompt command
       "review",
     ]) {
@@ -56,7 +59,37 @@ describe("SERVER_SUPPORTED_COMMANDS", () => {
 
   it("does not contain unsupported commands", () => {
     expect(SERVER_SUPPORTED_COMMANDS.has("bogus")).toBe(false);
-    expect(SERVER_SUPPORTED_COMMANDS.size).toBe(16);
+    expect(SERVER_SUPPORTED_COMMANDS.size).toBe(17);
+  });
+});
+
+describe("isExecutableCommand", () => {
+  const command = (over: Partial<Parameters<typeof isExecutableCommand>[0]>) =>
+    ({
+      description: "",
+      handler: () => "",
+      name: "x",
+      type: "local_ui",
+      ...over,
+    }) as Parameters<typeof isExecutableCommand>[0];
+
+  it("accepts server-supported commands regardless of type", () => {
+    expect(isExecutableCommand(command({ name: "clear", type: "local_ui" }))).toBe(true);
+    expect(isExecutableCommand(command({ name: "workflows", type: "local_ui" }))).toBe(true);
+  });
+
+  it("accepts generic prompt, skill_fork, and local registry commands", () => {
+    expect(isExecutableCommand(command({ name: "ultracode", type: "prompt" }))).toBe(true);
+    expect(isExecutableCommand(command({ name: "my-skill", type: "skill_fork" }))).toBe(true);
+    expect(isExecutableCommand(command({ name: "my-cmd", type: "local" }))).toBe(true);
+  });
+
+  it("rejects terminal-only and unknown local_ui commands", () => {
+    for (const name of TERMINAL_ONLY_COMMANDS) {
+      expect(isExecutableCommand(command({ name, type: "local" }))).toBe(false);
+      expect(isExecutableCommand(command({ name, type: "local_ui" }))).toBe(false);
+    }
+    expect(isExecutableCommand(command({ name: "mystery", type: "local_ui" }))).toBe(false);
   });
 });
 
@@ -78,12 +111,15 @@ describe("buildCommandCandidates", () => {
       expect(typeof candidate.description).toBe("string");
       expect(Array.isArray(candidate.aliases)).toBe(true);
       expect(typeof candidate.type).toBe("string");
-      expect(SERVER_SUPPORTED_COMMANDS.has(candidate.name)).toBe(true);
     }
     expect(candidates.some((c) => c.name === "help")).toBe(true);
     // Server-specific commands absent from the library registry.
     expect(candidates.some((c) => c.name === "skill")).toBe(true);
+    // Generic prompt commands from the library registry are executable.
+    expect(candidates.some((c) => c.name === "ultracode")).toBe(true);
     // Library commands the server does not execute stay hidden.
     expect(candidates.some((c) => c.name === "quit")).toBe(false);
+    expect(candidates.some((c) => c.name === "resume")).toBe(false);
+    expect(candidates.some((c) => c.name === "session")).toBe(false);
   });
 });

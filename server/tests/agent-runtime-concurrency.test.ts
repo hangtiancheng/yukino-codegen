@@ -863,6 +863,7 @@ describe("rewind checkpoint persistence", () => {
       getMessages: vi.fn().mockReturnValue([]),
       truncateTo: vi.fn(),
     },
+    dispose: vi.fn().mockResolvedValue(undefined),
     registry: { dispose: vi.fn().mockResolvedValue(undefined) },
     teamManager: { stopAll: vi.fn().mockResolvedValue(undefined) },
   });

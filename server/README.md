@@ -487,17 +487,26 @@ multi-user service:
   expire after 5 minutes, and settle deterministically on abort/dispose.
 - **Remote-parity capabilities** — plan mode with browser plan approval
   (`yolo`/`manual`/`feedback`), `/goal`, fork-mode skills, `/model` discovery and
-  hot-swap, `/thinking` levels, runtime `/sandbox auto|manual|off`, in-place
-  `/mcp reload`, `/worktree`, `/status`, user `!`/`!!` Bash, image uploads with
-  `@`-reference expansion, `@file` completion, prompt history, code review
-  (`/review [scope]`, run by the library's built-in read-only review subagent),
-  conversation/code rewind checkpoints,
+  hot-swap, `/thinking` levels (falling back to the provider's supported levels),
+  runtime `/sandbox auto|manual|off`, in-place `/mcp reload`, `/worktree`,
+  `/status`, `/compact [instructions]`, `/memory [clear]`, `/workflows`, user
+  `!`/`!!` Bash, image uploads with `@`-reference expansion, `@file` completion,
+  prompt history, code review (`/review [scope]`, run by the library's built-in
+  read-only review subagent), conversation/code rewind checkpoints,
   Ctrl+B shell backgrounding, live usage/context occupancy, and subagent/background
   task/teammate activity feeds.
+- **Library-registry dispatch** — any executable command in the live handle's
+  registry runs with Remote semantics (`RemoteServer.handleSlashCommand` parity):
+  `ultracode`, user-defined commands, named workflow commands, and direct skill
+  invocations. `/clear` rotates the full session state (conversation, file
+  history/state cache, task list, recovery state, active skills) and stops
+  background tasks and teammates.
 
-Intentional deviations from single-user Remote: `/quit` and provider switching are
-not exposed (the server is shared and provider credentials come from environment
-configuration; per-workspace `modelOverride` covers model choice).
+Intentional deviations from single-user Remote: terminal-only commands (`/login`,
+`/provider`, `/quit`, `/feedback`, `/resume`, `/session`) are not exposed (the
+server is shared; provider credentials come from environment configuration,
+sessions persist to the database, and per-workspace `modelOverride` covers model
+choice).
 
 ## Browser Preview
 
