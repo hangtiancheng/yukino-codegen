@@ -35,7 +35,7 @@ export const createSkillRuntime = (workDir: string) => {
     name?: string,
   ): Promise<{ ok: boolean; output: string }> => {
     const tool = new Skills.InstallSkillTool.InstallSkillTool(workDir, catalog);
-    const ctx: Tools.Types.ToolContext = { cwd: workDir };
+    const ctx: Tools.ToolContext = { cwd: workDir };
     const result = await tool.execute(ctx, {
       source,
       ...(name !== undefined && { name }),

@@ -242,7 +242,13 @@ describe("createEventAdapter - misc events", () => {
 
   it("emits ephemeral agent_status for steering_delivered", () => {
     const adapter = createEventAdapter();
-    expect(first(adapter, { type: "steering_delivered", text: "hold on, use pnpm" })).toEqual({
+    expect(
+      first(adapter, {
+        inputId: "input-1",
+        text: "hold on, use pnpm",
+        type: "steering_delivered",
+      }),
+    ).toEqual({
       persist: false,
       message: {
         type: "agent_status",

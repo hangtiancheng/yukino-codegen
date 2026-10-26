@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import {
   Agent,
   Bootstrap,
-  CodeReview,
+  Commands,
   Compact,
   Config,
   Conversation,
@@ -45,6 +45,7 @@ import {
   toPermissionPayload,
 } from "./interaction-broker.js";
 import { toYukinoMcpConfig } from "./mcp-config.js";
+import { type MemoryMaintenanceTasks, createMemoryMaintenanceTasks } from "./memory-runtime.js";
 import type { AgentServerMessage, AgentTranscriptEventMessage } from "./protocol.js";
 import { buildProviderConfig } from "./provider.js";
 import type { AgentStores } from "./stores.js";
@@ -173,6 +174,28 @@ const toYukinoMode = (mode: AgentPermissionMode): Permissions.PermissionMode => 
   }
 };
 
+/**
+ * Local-git adaptation of the library's /review prompt: the upstream
+ * Commands.Prompts.buildReviewPrompt targets GitHub PRs through `gh`, while
+ * codegen workspaces are local repositories, so the scope defaults to the
+ * uncommitted working tree and free-form args select refs or focus.
+ */
+const buildReviewPrompt = (args: string): string => {
+  const scope =
+    args.trim().length > 0
+      ? args.trim()
+      : "the uncommitted working tree changes (collect them with `git status --porcelain` and `git diff HEAD`)";
+  return [
+    `You are an expert code reviewer. Review ${scope} in this repository.`,
+    "",
+    "1. Collect the changes with git (e.g. `git diff <from>..<to>`, `git show <commit>`, or `git diff HEAD` for the working tree).",
+    "2. Read the surrounding code and project instructions to understand the changes in context.",
+    "3. Provide a concise but thorough review covering what the changes do, code correctness, project conventions, performance, test coverage, and security. Report specific issues with file paths and line numbers, explain their impact, and suggest improvements. State any limitations or checks you could not complete.",
+    "",
+    "Use clear sections and bullet points. Review only: do not modify files or run destructive commands. Return your findings directly as Markdown.",
+  ].join("\n");
+};
+
 export type RunTurnInput = Readonly<{
   requestId: string;
   turnId: string;
@@ -254,6 +277,8 @@ export class AgentRuntime {
   private followUps: RunTurnInput[] = [];
   /** Resolved handle mirror for synchronous access paths. */
   private resolvedHandle: Remote.Server.RemoteAgentHandle | null = null;
+  /** Cursor-based background memory extraction/consolidation (Remote parity). */
+  private memoryTasks: MemoryMaintenanceTasks | null = null;
   /** Live subagent/fork activity keyed by toolCallId (Remote parity). */
   private readonly subagentStates = new Map<string, SubagentActivity>();
   private activityAttached = false;
@@ -415,6 +440,10 @@ export class AgentRuntime {
       forkDisabled: false,
       hooks: buildHookConfigs(hookRows),
       mcpServers: mcpRows.map(toYukinoMcpConfig),
+      // Gates the startup long-term-memory injection; per-turn injection and
+      // maintenance follow the live workspace setting (it can toggle at
+      // runtime through applySoftSettings without recreating the handle).
+      memoryEnabled: this.workspace.memoryEnabled,
       provider,
       ...(this.workspace.sandboxEnabled && {
         sandboxConfig: {
@@ -644,7 +673,7 @@ export class AgentRuntime {
       thinkingLevel:
         handle?.client.getThinkingLevel?.() ??
         this.workspace.thinkingLevel ??
-        Config.ProviderConfig.DEFAULT_THINKING_LEVEL,
+        Config.Constants.DEFAULT_THINKING_LEVEL,
     });
     // Prompt history for composer up/down navigation (Remote parity), derived
     // from the persisted transcript so it survives reconnects and restarts.
@@ -1023,7 +1052,7 @@ export class AgentRuntime {
       }
 
       const skillSection =
-        handle.skillCatalog !== null ? Skills.Catalog.buildSkillSection(handle.skillCatalog) : "";
+        handle.skillCatalog !== null ? Skills.Prompts.buildSkillSection(handle.skillCatalog) : "";
 
       const agent = new Agent.Agent({
         abortSignal: abort.signal,
@@ -1036,15 +1065,19 @@ export class AgentRuntime {
         fileHistory: handle.fileHistory,
         fileStateCache: handle.fileStateCache,
         ...(handle.goalManager !== undefined && { goalManager: handle.goalManager }),
-        instructions: handle.longTermMemoryInstructions,
+        // Function form (Remote parity): re-read the current instructions and
+        // memory index at each (re)injection instead of snapshotting them at
+        // handle creation, so edits and runtime toggles survive compaction.
+        instructions: () => Memory.Instructions.loadInstructions(handle.cwd),
         maxIterations: env.AI_MAX_ITERATIONS,
         maxOutput: Config.ProviderConfig.getMaxOutputTokens(handle.provider),
-        memoryContent: this.workspace.memoryEnabled ? handle.longTermMemoryMemoryContent : "",
+        memoryContent: () =>
+          this.workspace.memoryEnabled ? handle.memoryManager.buildSystemReminder() : "",
         notificationFn: () => [
           ...handle.teamManager.drainLeaderMailbox(),
           ...handle.backgroundTaskManager
             .drainNotifications()
-            .map(Subagent.TaskManager.formatAgentTaskNotification),
+            .map(Subagent.Prompts.formatAgentTaskNotification),
         ],
         onPermissionRequest: this.buildPermissionCallback(checker, turnId),
         recoveryState: handle.recoveryState,
@@ -1054,7 +1087,7 @@ export class AgentRuntime {
         skillDeltaFn: () => {
           const section =
             handle.skillCatalog !== null
-              ? Skills.Catalog.buildSkillSection(handle.skillCatalog)
+              ? Skills.Prompts.buildSkillSection(handle.skillCatalog)
               : "";
           return section.length > 0 && !handle.conv.hasReminderContaining(section) ? section : "";
         },
@@ -1136,10 +1169,10 @@ export class AgentRuntime {
       this.currentTurnId = null;
       if (!this.runCanceled) {
         for (let index = leftovers.length - 1; index >= 0; index -= 1) {
-          const text = leftovers[index];
-          if (text === undefined) continue;
+          const leftover = leftovers[index];
+          if (leftover === undefined) continue;
           this.followUps.unshift({
-            input: text,
+            input: leftover.text,
             persistedAsSteering: true,
             requestId: randomUUID(),
             turnId: randomUUID(),
@@ -1178,20 +1211,13 @@ export class AgentRuntime {
     handle: Remote.Server.RemoteAgentHandle,
     conv: Remote.Server.RemoteAgentHandle["conv"],
   ): void {
-    const summary = conv
-      .getMessages()
-      .slice(-40)
-      .map((message) => `[${message.role}]: ${Utils.contentToText(message.content)}`)
-      .filter((line) => line.length > 12)
-      .join("\n");
-    new Memory.Extractor.MemoryExtractor(handle.client, this.workDir)
-      .extract(summary)
-      .catch(() => {});
-    new Memory.Consolidation.MemoryConsolidator(handle.client, this.workDir, {
-      appendSystem: (message) => conv.addSystemReminder(message),
-    })
-      .maybeRun()
-      .catch(() => {});
+    // Remote BackgroundMemoryTasks parity: one cursor-tracked task set per
+    // runtime, created lazily so extraction only covers the new tail and
+    // in-flight LLM calls are settled on dispose.
+    this.memoryTasks ??= createMemoryMaintenanceTasks(handle.client, this.workDir, (message) => {
+      this.resolvedHandle?.conv.addSystemReminder(message);
+    });
+    this.memoryTasks.run(conv);
   }
 
   /**
@@ -1660,7 +1686,7 @@ export class AgentRuntime {
       current:
         handle.client.getThinkingLevel?.() ??
         this.workspace.thinkingLevel ??
-        Config.ProviderConfig.DEFAULT_THINKING_LEVEL,
+        Config.Constants.DEFAULT_THINKING_LEVEL,
       levels: [...(handle.client.getSupportedThinkingLevels?.() ?? [])],
       type: "thinking_form",
     });
@@ -1932,7 +1958,7 @@ export class AgentRuntime {
         toolId,
         toolName: "Bash",
       });
-      let result: Tools.Types.ToolResult;
+      let result: Tools.ToolResult;
       try {
         result = await Conversation.UserBash.executeUserBash(
           bashTool,
@@ -1978,7 +2004,7 @@ export class AgentRuntime {
           output: result.output,
           status,
         };
-        handle.conv.addUserMessage(Conversation.UserBash.userBashContext(recorded));
+        handle.conv.addUserMessage(Conversation.Prompts.userBashContext(recorded));
       }
       this.sendCommandResult(requestId, excludeFromContext ? "!!" : "!", true, {
         result: { elapsed, isError: result.isError ?? false, status },
@@ -1986,107 +2012,104 @@ export class AgentRuntime {
     });
   }
 
-  // ─────────────────────────── Code review (Remote parity) ───────────────────────────
+  // ─────────────────────────── Review (/review subagent) ───────────────────────────
 
-  /** Runs a code review configured through the browser form. */
-  async handleCodeReviewStart(options: {
-    background?: string;
-    from?: string;
-    to?: string;
-    commit?: string;
-    excludePatterns?: string[];
-    requestId?: string;
-  }): Promise<void> {
+  /**
+   * Runs the built-in read-only review subagent (the library replaced its
+   * structured CodeReview runner with this prompt-driven /review design).
+   */
+  private async runReviewAgent(
+    handle: Remote.Server.RemoteAgentHandle,
+    turnId: string,
+    prompt: string,
+    displayText: string,
+    abortSignal: AbortSignal,
+  ): Promise<Tools.ToolResult> {
+    // Per-turn checker exactly like executeTurn: the review agent's git
+    // commands go through the same permission and sandbox gates.
+    const checker = new Permissions.PermissionChecker(
+      this.workDir,
+      toYukinoMode(this.workspace.permissionMode),
+    );
+    checker.sandboxEnabled = this.workspace.sandboxEnabled;
+    checker.sandboxAutoAllow = this.workspace.sandboxAutoAllow;
+    checker.planFilePath = this.planFilePath;
+    return Commands.Subagent.runSubagentCommand(
+      Subagent.Constants.REVIEW_AGENT_NAME,
+      prompt,
+      displayText,
+      {
+        abortSignal,
+        conversation: handle.conv,
+        cwd: handle.cwd,
+        onEvent: (event) => {
+          // Broadcast-only bridge (the structured runner behaved the same):
+          // the report itself is persisted by the caller as an assistant_message.
+          if (event.type === "tool_use") {
+            this.broadcast({
+              payload: { args: event.args, toolId: event.toolId, toolName: event.toolName },
+              type: "tool_use",
+            });
+          } else if (event.type === "tool_result") {
+            this.broadcast({
+              payload: {
+                elapsed: event.elapsed,
+                isError: event.isError,
+                output: event.output,
+                toolId: event.toolId,
+                toolName: event.toolName,
+              },
+              type: "tool_result",
+            });
+          }
+        },
+        onPermissionRequest: this.buildPermissionCallback(checker, turnId),
+        permissionChecker: checker,
+        registry: handle.registry,
+        sessionId: handle.sessionId,
+      },
+    );
+  }
+
+  /** Runs the library /review prompt command through the review subagent. */
+  private async runReviewCommand(
+    args: string,
+    requestId: string,
+    actorUserId?: string,
+  ): Promise<void> {
     if (this.isBusy) {
-      this.broadcast({
-        payload: { message: "A run is already in progress.", phase: "code_review_blocked" },
-        type: "agent_status",
+      this.sendCommandResult(requestId, "review", false, {
+        error: "A run is already in progress.",
       });
       return;
     }
-    const from = options.from?.trim() || undefined;
-    const to = options.to?.trim() || undefined;
-    const commit = options.commit?.trim() || undefined;
-    try {
-      CodeReview.Runner.validateReviewInput(from, to, commit);
-    } catch (error) {
-      this.broadcast({
-        code: "code_review_invalid",
-        message: Utils.asErrorString(error),
-        recoverable: true,
-        type: "error",
-        ...(options.requestId !== undefined && { requestId: options.requestId }),
-      });
-      return;
-    }
-
     const controller = new AbortController();
     this.reviewController = controller;
     await this.runLockedTask(async () => {
       const handle = await this.ensureHandle();
       const turnId = randomUUID();
       this.currentTurnId = turnId;
+      const displayText = args.trim().length > 0 ? `/review ${args.trim()}` : "/review";
       try {
-        this.broadcast({
-          message: "Starting code review…",
-          phase: "diff",
-          type: "code_review_progress",
+        await this.emitPersist(turnId, "user_message", {
+          text: displayText,
+          ...(actorUserId !== undefined && { actorUserId }),
         });
-        const background = options.background?.trim() || undefined;
-        const result = await CodeReview.Runner.runCodeReview(
-          {
-            abortSignal: controller.signal,
-            cwd: handle.cwd,
-            excludePatterns:
-              options.excludePatterns?.filter((pattern) => pattern.trim().length > 0) ?? [],
-            onProgress: (event) => {
-              this.broadcast({
-                message: event.message,
-                phase: event.phase,
-                type: "code_review_progress",
-                ...(event.progress !== undefined && { progress: event.progress }),
-              });
-            },
-            onToolEvent: (event) => {
-              if (event.type === "tool_use") {
-                this.broadcast({
-                  payload: { args: event.args, toolId: event.toolId, toolName: event.toolName },
-                  type: "tool_use",
-                });
-              } else {
-                this.broadcast({
-                  payload: {
-                    elapsed: event.elapsed,
-                    isError: event.isError,
-                    output: event.output,
-                    toolId: event.toolId,
-                    toolName: event.toolName,
-                  },
-                  type: "tool_result",
-                });
-              }
-            },
-            ...(background !== undefined && { background }),
-            ...(commit !== undefined && { commit }),
-            ...(from !== undefined && { from }),
-            ...(to !== undefined && { to }),
-          },
-          { provider: handle.provider },
+        const result = await this.runReviewAgent(
+          handle,
+          turnId,
+          buildReviewPrompt(args),
+          displayText,
+          controller.signal,
         );
-        const report = CodeReview.Report.formatReviewReport(result);
-        await this.emitPersist(turnId, "assistant_message", { text: report });
-        if (result.comments.length > 0) {
-          handle.conv.addSystemReminder(
-            `<code_review_findings>\n${report}\n</code_review_findings>`,
-          );
-        }
+        if (result.isError) throw new Error(result.output);
+        await this.emitPersist(turnId, "assistant_message", { text: result.output });
+        this.sendCommandResult(requestId, "review", true, {
+          result: { message: "Review complete" },
+        });
       } catch (error) {
-        this.broadcast({
-          code: "code_review_failed",
-          message: Utils.asErrorString(error),
-          recoverable: true,
-          type: "error",
-          ...(options.requestId !== undefined && { requestId: options.requestId }),
+        this.sendCommandResult(requestId, "review", false, {
+          error: Utils.asErrorString(error),
         });
       } finally {
         this.reviewController = null;
@@ -2347,6 +2370,11 @@ export class AgentRuntime {
         await handle.registry.dispose().catch(() => undefined);
       }
     }
+    // Remote stopMemoryTasks parity: settle in-flight memory LLM calls so they
+    // cannot outlive the workspace or write reminders after shutdown.
+    const memoryTasks = this.memoryTasks;
+    this.memoryTasks = null;
+    await memoryTasks?.dispose().catch(() => undefined);
     await this.disposeSandbox().catch(() => undefined);
     this.resolvedHandle = null;
     this.subagentStates.clear();
@@ -2578,18 +2606,18 @@ export class AgentRuntime {
       this.sendCommandResult(requestId, name, true, { result: { worktrees } });
       return;
     }
-    if (name === "code-review") {
-      if (args.trim().length > 0) {
-        this.sendCommandResult(requestId, name, false, { error: "Usage: /code-review" });
-      } else {
-        this.broadcast({ data: null, type: "code_review_form" });
-        this.sendCommandResult(requestId, name, true, { result: { form: "broadcast" } });
-      }
+    if (name === "review") {
+      await this.runReviewCommand(args, requestId, actorUserId);
       return;
     }
     if (name === "clear") {
       await this.runLockedTask(async () => {
         handle.conv.reset();
+        // Remote clearConversation parity: stop the memory tasks so the next
+        // run starts a fresh cursor over the cleared conversation.
+        const memoryTasks = this.memoryTasks;
+        this.memoryTasks = null;
+        await memoryTasks?.dispose().catch(() => undefined);
         await this.startNewSession();
         // Remote clearConversation parity: plan state rotates with the session.
         this.planFilePath = "";

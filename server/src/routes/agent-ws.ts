@@ -285,38 +285,6 @@ export const registerAgentWs = (router: Hono<AppHonoEnv>, deps: AgentWsDeps): vo
             await runtime.handlePlanApprovalResponse(message.choice, message.feedback);
             return;
           }
-          case "code_review_start": {
-            if (!writable) {
-              connection.send({
-                code: "read_only",
-                message: "Read-only connection cannot start a code review",
-                recoverable: true,
-                type: "error",
-                ...(message.requestId !== undefined && { requestId: message.requestId }),
-              });
-              return;
-            }
-            void runtime
-              .handleCodeReviewStart({
-                ...(message.background !== undefined && { background: message.background }),
-                ...(message.commit !== undefined && { commit: message.commit }),
-                ...(message.excludePatterns !== undefined && {
-                  excludePatterns: message.excludePatterns,
-                }),
-                ...(message.from !== undefined && { from: message.from }),
-                ...(message.requestId !== undefined && { requestId: message.requestId }),
-                ...(message.to !== undefined && { to: message.to }),
-              })
-              .catch((error: unknown) => {
-                connection?.send({
-                  code: "code_review_failed",
-                  message: error instanceof Error ? error.message : "code review failed",
-                  recoverable: true,
-                  type: "error",
-                });
-              });
-            return;
-          }
           case "rewind_action": {
             if (!writable) {
               connection.send({

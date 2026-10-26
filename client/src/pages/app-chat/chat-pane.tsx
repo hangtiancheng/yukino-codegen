@@ -11,7 +11,6 @@ import { ModelPicker, ThinkingPicker } from "./chat/agent-pickers";
 import { AgentStatusBar } from "./chat/agent-status-bar";
 import { AgentTranscriptView } from "./chat/agent-transcript-view";
 import { CapabilityDrawer } from "./chat/capability-drawer";
-import { CodeReviewDialog } from "./chat/code-review-dialog";
 import {
   AgentQuestionDialog,
   PermissionDialog,
@@ -20,7 +19,6 @@ import { PlanApprovalDialog } from "./chat/plan-approval-dialog";
 import { RewindDialog } from "./chat/rewind-dialog";
 import type {
   AgentRunOptions,
-  CodeReviewStartInput,
   PermissionDecision,
   QuestionAnswers,
 } from "./use-agent-socket";
@@ -48,7 +46,6 @@ export type ChatPaneProps = {
     choice: "yolo" | "manual" | "feedback",
     feedback?: string,
   ) => boolean;
-  readonly startCodeReview: (options: CodeReviewStartInput) => boolean;
   readonly rewind: (
     sha: string,
     action: "code_and_conversation" | "conversation_only" | "code_only",
@@ -81,7 +78,6 @@ export function ChatPane({
   respondPermission,
   respondQuestion,
   respondPlanApproval,
-  startCodeReview,
   rewind,
   requestFileCompletions,
   uploadImage,
@@ -206,16 +202,6 @@ export function ChatPane({
         runtimeStatus={state.runtimeStatus}
         replaying={state.replaying}
       />
-      {state.codeReviewProgress !== undefined ? (
-        <div className="border-border/70 bg-muted/20 flex items-center gap-2 border-t px-3 py-1.5 text-xs">
-          <span className="text-muted-foreground font-mono">
-            [review:{state.codeReviewProgress.phase}]
-          </span>
-          <span className="min-w-0 flex-1 truncate">
-            {state.codeReviewProgress.message}
-          </span>
-        </div>
-      ) : null}
       {lastCommand !== undefined ? (
         <div className="border-border/70 bg-muted/20 border-t px-3 py-1.5 text-xs">
           <span className="font-mono font-medium">/{lastCommand.command}</span>
@@ -323,17 +309,6 @@ export function ChatPane({
           }
         }}
         onClose={() => dispatch({ type: "close_rewind_picker" })}
-      />
-      <CodeReviewDialog
-        open={state.codeReviewOpen}
-        progress={state.codeReviewProgress}
-        onRun={(options) => {
-          dispatch({ type: "close_code_review" });
-          if (!startCodeReview(options)) {
-            toast.error("Unable to start the code review");
-          }
-        }}
-        onClose={() => dispatch({ type: "close_code_review" })}
       />
       <CapabilityDrawer
         appId={appId}

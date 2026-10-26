@@ -430,7 +430,6 @@ describe("interaction broker consistency", () => {
     const request = await broker.requestQuestions({
       questions: [
         {
-          header: "Choice",
           multiSelect: false,
           options: [],
           question: "Continue?",
@@ -525,7 +524,6 @@ describe("interaction broker consistency", () => {
     const question = await broker.requestQuestions({
       questions: [
         {
-          header: "Choice",
           multiSelect: false,
           options: [],
           question: "Continue?",
@@ -552,7 +550,6 @@ describe("interaction broker consistency", () => {
         interactionId: question.interactionId,
         questions: [
           {
-            header: "Choice",
             multiSelect: false,
             options: [],
             question: "Continue?",

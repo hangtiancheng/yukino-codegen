@@ -686,14 +686,6 @@ export const agentPreviewErrorSchema = z.object({
 });
 export type AgentPreviewError = z.infer<typeof agentPreviewErrorSchema>;
 
-const agentGitRefSchema = z
-  .string()
-  .min(1)
-  .max(256)
-  .refine((value) => !/[\r\n]/u.test(value), {
-    message: "Git refs must be a single line",
-  });
-
 export const agentPlanChoiceSchema = z.enum(["yolo", "manual", "feedback"]);
 export type AgentPlanChoice = z.infer<typeof agentPlanChoiceSchema>;
 
@@ -726,7 +718,6 @@ const agentWirePermissionRequestSchema = z
 const agentWireQuestionSchema = z
   .object({
     question: z.string(),
-    header: z.string(),
     options: z.array(
       z
         .object({
@@ -850,17 +841,6 @@ export const agentClientMessageSchema = z.discriminatedUnion("type", [
       requestId: agentWireRequestIdSchema.optional(),
       choice: z.enum(["yolo", "manual", "feedback"]),
       feedback: z.string().max(20_000).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("code_review_start"),
-      requestId: agentWireRequestIdSchema.optional(),
-      background: z.string().max(4_000).optional(),
-      from: agentGitRefSchema.optional(),
-      to: agentGitRefSchema.optional(),
-      commit: agentGitRefSchema.optional(),
-      excludePatterns: z.array(z.string().max(512)).max(64).optional(),
     })
     .strict(),
   z
@@ -1082,15 +1062,6 @@ export const agentServerMessageSchema = z.union([
           })
           .strict(),
       ),
-    })
-    .strict(),
-  z.object({ type: z.literal("code_review_form"), data: z.null() }).strict(),
-  z
-    .object({
-      type: z.literal("code_review_progress"),
-      phase: z.string(),
-      message: z.string(),
-      progress: z.number().optional(),
     })
     .strict(),
   z

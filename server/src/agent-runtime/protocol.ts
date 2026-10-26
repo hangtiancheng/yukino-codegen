@@ -19,7 +19,6 @@ const permissionRequestSchema = z
 const questionSchema = z
   .object({
     question: z.string(),
-    header: z.string(),
     options: z.array(
       z
         .object({
@@ -31,12 +30,6 @@ const questionSchema = z
     multiSelect: z.boolean(),
   })
   .strict();
-
-const gitRefSchema = z
-  .string()
-  .min(1)
-  .max(256)
-  .refine((value) => !/[\r\n]/u.test(value), { message: "Git refs must be a single line" });
 
 const commandCandidateSchema = z
   .object({
@@ -146,17 +139,6 @@ export const agentClientMessageSchema = z.discriminatedUnion("type", [
       requestId: requestIdSchema.optional(),
       choice: z.enum(["yolo", "manual", "feedback"]),
       feedback: z.string().max(20_000).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal("code_review_start"),
-      requestId: requestIdSchema.optional(),
-      background: z.string().max(4_000).optional(),
-      from: gitRefSchema.optional(),
-      to: gitRefSchema.optional(),
-      commit: gitRefSchema.optional(),
-      excludePatterns: z.array(z.string().max(512)).max(64).optional(),
     })
     .strict(),
   z
@@ -365,15 +347,6 @@ export const agentServerMessageSchema = z.union([
           })
           .strict(),
       ),
-    })
-    .strict(),
-  z.object({ type: z.literal("code_review_form"), data: z.null() }).strict(),
-  z
-    .object({
-      type: z.literal("code_review_progress"),
-      phase: z.string(),
-      message: z.string(),
-      progress: z.number().optional(),
     })
     .strict(),
   z

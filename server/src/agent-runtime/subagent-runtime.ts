@@ -5,7 +5,7 @@ export type SubagentVo = Readonly<{
   description: string;
   model?: string;
   background: boolean;
-  isolation?: "worktree";
+  worktree: boolean;
 }>;
 
 export const listSubagents = (): SubagentVo[] =>
@@ -13,8 +13,6 @@ export const listSubagents = (): SubagentVo[] =>
     background: definition.background ?? false,
     description: definition.description,
     name: definition.name,
+    worktree: definition.worktree ?? false,
     ...(definition.model !== undefined && { model: definition.model }),
-    ...(definition.isolation !== undefined && {
-      isolation: definition.isolation,
-    }),
   }));

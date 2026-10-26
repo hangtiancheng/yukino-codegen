@@ -131,19 +131,6 @@ describe("agentClientMessageSchema - malformed", () => {
     ).toBe(false);
   });
 
-  it("rejects multi-line git refs in code review requests", () => {
-    expect(
-      agentClientMessageSchema.safeParse({ from: "HEAD~2", to: "HEAD", type: "code_review_start" })
-        .success,
-    ).toBe(true);
-    expect(
-      agentClientMessageSchema.safeParse({
-        from: "HEAD\n--upload-pack=x",
-        type: "code_review_start",
-      }).success,
-    ).toBe(false);
-  });
-
   it("validates rewind actions, file completion, and image uploads", () => {
     expect(
       agentClientMessageSchema.safeParse({
@@ -287,17 +274,6 @@ describe("agentServerMessageSchema", () => {
           { conversation: true, date: "2026-01-01", message: "agent: t", sha: "abc1234" },
         ],
         type: "rewind_list",
-      }).success,
-    ).toBe(true);
-    expect(
-      agentServerMessageSchema.safeParse({ data: null, type: "code_review_form" }).success,
-    ).toBe(true);
-    expect(
-      agentServerMessageSchema.safeParse({
-        message: "Grouping files",
-        phase: "grouping",
-        progress: 0.4,
-        type: "code_review_progress",
       }).success,
     ).toBe(true);
     expect(

@@ -47,7 +47,8 @@ describe("SERVER_SUPPORTED_COMMANDS", () => {
       "thinking",
       "sandbox",
       "worktree",
-      "code-review",
+      // Library /review prompt command
+      "review",
     ]) {
       expect(SERVER_SUPPORTED_COMMANDS.has(name)).toBe(true);
     }
@@ -68,7 +69,7 @@ describe("isSkillCommand", () => {
 });
 
 describe("buildCommandCandidates", () => {
-  it("returns default-registry candidates shaped {name,description,aliases,type}", () => {
+  it("returns supported candidates shaped {name,description,aliases,type}", () => {
     const candidates = buildCommandCandidates();
     expect(candidates.length).toBeGreaterThan(0);
     for (const candidate of candidates) {
@@ -77,7 +78,12 @@ describe("buildCommandCandidates", () => {
       expect(typeof candidate.description).toBe("string");
       expect(Array.isArray(candidate.aliases)).toBe(true);
       expect(typeof candidate.type).toBe("string");
+      expect(SERVER_SUPPORTED_COMMANDS.has(candidate.name)).toBe(true);
     }
     expect(candidates.some((c) => c.name === "help")).toBe(true);
+    // Server-specific commands absent from the library registry.
+    expect(candidates.some((c) => c.name === "skill")).toBe(true);
+    // Library commands the server does not execute stay hidden.
+    expect(candidates.some((c) => c.name === "quit")).toBe(false);
   });
 });

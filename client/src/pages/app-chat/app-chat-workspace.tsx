@@ -90,7 +90,6 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
               respondPermission={socket.respondPermission}
               respondQuestion={socket.respondQuestion}
               respondPlanApproval={socket.respondPlanApproval}
-              startCodeReview={socket.startCodeReview}
               rewind={socket.rewind}
               requestFileCompletions={socket.requestFileCompletions}
               uploadImage={socket.uploadImage}

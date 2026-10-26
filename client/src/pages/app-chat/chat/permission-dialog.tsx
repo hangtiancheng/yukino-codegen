@@ -155,11 +155,6 @@ export function AgentQuestionDialog({
               const selected = answers[question.question] ?? [];
               return (
                 <fieldset key={questionIndex} className="flex flex-col gap-2">
-                  {question.header.length > 0 ? (
-                    <legend className="text-muted-foreground text-xs font-medium uppercase">
-                      {question.header}
-                    </legend>
-                  ) : null}
                   <p className="text-sm font-medium">{question.question}</p>
                   <div className="flex flex-col gap-1.5">
                     {question.options.map((option, optionIndex) => {

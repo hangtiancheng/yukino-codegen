@@ -114,7 +114,6 @@ describe("agentServerMessageSchema", () => {
             questions: [
               {
                 question: "Continue?",
-                header: "Choice",
                 options: [{ label: "Yes" }],
                 multiSelect: false,
               },

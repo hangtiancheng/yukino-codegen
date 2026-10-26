@@ -46,7 +46,6 @@ export type AgentQuestionOption = {
 
 export type AgentQuestion = {
   readonly question: string;
-  readonly header: string;
   readonly options: readonly AgentQuestionOption[];
   readonly multiSelect: boolean;
 };
@@ -96,12 +95,6 @@ export type AgentRewindSnapshot = {
   readonly message: string;
   readonly date: string;
   readonly conversation: boolean;
-};
-
-export type AgentCodeReviewProgress = {
-  readonly phase: string;
-  readonly message: string;
-  readonly progress: number | undefined;
 };
 
 export type AgentUsage = {
@@ -181,8 +174,6 @@ export type AgentTranscriptState = {
   readonly modelPicker: AgentModelList | undefined;
   readonly thinkingPicker: AgentThinkingForm | undefined;
   readonly rewindPicker: ReadonlyArray<AgentRewindSnapshot> | undefined;
-  readonly codeReviewOpen: boolean;
-  readonly codeReviewProgress: AgentCodeReviewProgress | undefined;
   readonly history: ReadonlyArray<string>;
   readonly usage: AgentUsage | undefined;
   readonly model: string | undefined;
@@ -281,12 +272,6 @@ export type AgentTranscriptAction =
       readonly snapshots: ReadonlyArray<AgentRewindSnapshot>;
     }
   | { readonly type: "close_rewind_picker" }
-  | { readonly type: "code_review_form" }
-  | { readonly type: "close_code_review" }
-  | {
-      readonly type: "code_review_progress";
-      readonly progress: AgentCodeReviewProgress;
-    }
   | { readonly type: "history"; readonly entries: ReadonlyArray<string> }
   | { readonly type: "usage"; readonly usage: AgentUsage }
   | {
@@ -350,8 +335,6 @@ export const initialAgentTranscriptState: AgentTranscriptState = {
   modelPicker: undefined,
   thinkingPicker: undefined,
   rewindPicker: undefined,
-  codeReviewOpen: false,
-  codeReviewProgress: undefined,
   history: [],
   usage: undefined,
   model: undefined,
@@ -563,13 +546,6 @@ export function agentTranscriptReducer(
     case "error":
       return {
         ...state,
-        // A failed review never emits a `done` progress phase, so release the
-        // progress strip / dialog running state here or both stay stuck until
-        // a page reload.
-        ...(action.code === "code_review_failed" ||
-        action.code === "code_review_invalid"
-          ? { codeReviewProgress: undefined }
-          : {}),
         errors: [
           ...state.errors.slice(-(MAX_ERRORS - 1)),
           { id: (sideItemId += 1), message: action.message, code: action.code },
@@ -596,12 +572,6 @@ export function agentTranscriptReducer(
       return { ...state, rewindPicker: action.snapshots };
     case "close_rewind_picker":
       return { ...state, rewindPicker: undefined };
-    case "code_review_form":
-      return { ...state, codeReviewOpen: true };
-    case "close_code_review":
-      return { ...state, codeReviewOpen: false };
-    case "code_review_progress":
-      return { ...state, codeReviewProgress: action.progress };
     case "history":
       return { ...state, history: action.entries };
     case "usage":

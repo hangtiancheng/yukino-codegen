@@ -140,7 +140,6 @@ const toTeammateInfo = (value: unknown): AgentTeammateInfo[] => {
 
 const toQuestion = (question: WireQuestion): AgentQuestion => ({
   question: question.question,
-  header: question.header,
   options: question.options.map((option) => ({
     label: option.label,
     description: option.description,
@@ -172,14 +171,6 @@ export type UseAgentSocketOptions = {
   readonly dispatch: Dispatch<AgentTranscriptAction>;
 };
 
-export type CodeReviewStartInput = {
-  readonly background?: string;
-  readonly from?: string;
-  readonly to?: string;
-  readonly commit?: string;
-  readonly excludePatterns?: ReadonlyArray<string>;
-};
-
 export type UseAgentSocketResult = {
   readonly connectionState: AgentConnectionState;
   readonly connect: () => void;
@@ -198,7 +189,6 @@ export type UseAgentSocketResult = {
     choice: "yolo" | "manual" | "feedback",
     feedback?: string,
   ) => boolean;
-  readonly startCodeReview: (options: CodeReviewStartInput) => boolean;
   readonly rewind: (
     sha: string,
     action: "code_and_conversation" | "conversation_only" | "code_only",
@@ -447,19 +437,6 @@ export function useAgentSocket({
           return;
         case "rewind_list":
           dispatch({ type: "rewind_list", snapshots: message.snapshots });
-          return;
-        case "code_review_form":
-          dispatch({ type: "code_review_form" });
-          return;
-        case "code_review_progress":
-          dispatch({
-            type: "code_review_progress",
-            progress: {
-              message: message.message,
-              phase: message.phase,
-              progress: message.progress,
-            },
-          });
           return;
         case "file_complete_response":
           dispatch({
@@ -862,24 +839,6 @@ export function useAgentSocket({
     [sendNow],
   );
 
-  const startCodeReview = useCallback(
-    (options: CodeReviewStartInput): boolean =>
-      sendNow({
-        type: "code_review_start",
-        requestId: newRequestId(),
-        ...(options.background !== undefined && {
-          background: options.background,
-        }),
-        ...(options.from !== undefined && { from: options.from }),
-        ...(options.to !== undefined && { to: options.to }),
-        ...(options.commit !== undefined && { commit: options.commit }),
-        ...(options.excludePatterns !== undefined && {
-          excludePatterns: [...options.excludePatterns],
-        }),
-      }),
-    [sendNow],
-  );
-
   const rewind = useCallback(
     (
       sha: string,
@@ -921,7 +880,6 @@ export function useAgentSocket({
     respondPermission,
     respondQuestion,
     respondPlanApproval,
-    startCodeReview,
     rewind,
     requestFileCompletions,
     uploadImage,

@@ -284,13 +284,13 @@ Use `server/.env.example` as the canonical template.
 The agent runtime keeps one live `@yukino.js/yukino` workspace per `(owner, app)` pair. These
 knobs bound how many workspaces, turns, and sockets the node serves at once.
 
-| Variable                            | Default   | Description                                                                                  |
-| ----------------------------------- | --------- | -------------------------------------------------------------------------------------------- |
-| `AGENT_WORKSPACE_IDLE_MS`           | `900000`  | Idle time after which a workspace runtime (LLM client, MCP children, tools) is disposed.      |
-| `AGENT_WS_MAX_MESSAGE_BYTES`        | `524288`  | Maximum size of one inbound agent WebSocket frame.                                            |
-| `AGENT_MAX_CONCURRENT_TURNS`        | `4`       | Process-wide cap on simultaneously running agent loops; extra turns queue FIFO.               |
-| `AGENT_MAX_CONNECTIONS_PER_WORKSPACE` | `8`     | Maximum simultaneous WebSocket watchers per workspace; extra connections close with `1013`.   |
-| `AGENT_TURN_CLAIM_STALE_MS`         | `1800000` | A session stuck in `RUNNING` longer than this (crashed node) can be reclaimed by any instance.|
+| Variable                              | Default   | Description                                                                                    |
+| ------------------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `AGENT_WORKSPACE_IDLE_MS`             | `900000`  | Idle time after which a workspace runtime (LLM client, MCP children, tools) is disposed.       |
+| `AGENT_WS_MAX_MESSAGE_BYTES`          | `524288`  | Maximum size of one inbound agent WebSocket frame.                                             |
+| `AGENT_MAX_CONCURRENT_TURNS`          | `4`       | Process-wide cap on simultaneously running agent loops; extra turns queue FIFO.                |
+| `AGENT_MAX_CONNECTIONS_PER_WORKSPACE` | `8`       | Maximum simultaneous WebSocket watchers per workspace; extra connections close with `1013`.    |
+| `AGENT_TURN_CLAIM_STALE_MS`           | `1800000` | A session stuck in `RUNNING` longer than this (crashed node) can be reclaimed by any instance. |
 
 ### AI Model Configuration
 
@@ -490,7 +490,8 @@ multi-user service:
   hot-swap, `/thinking` levels, runtime `/sandbox auto|manual|off`, in-place
   `/mcp reload`, `/worktree`, `/status`, user `!`/`!!` Bash, image uploads with
   `@`-reference expansion, `@file` completion, prompt history, code review
-  (`/code-review` form + progress stream), conversation/code rewind checkpoints,
+  (`/review [scope]`, run by the library's built-in read-only review subagent),
+  conversation/code rewind checkpoints,
   Ctrl+B shell backgrounding, live usage/context occupancy, and subagent/background
   task/teammate activity feeds.
 

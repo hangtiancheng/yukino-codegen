@@ -35,7 +35,6 @@ export type PermissionRequestPayload = Readonly<{
 
 export type YukinoQuestion = Readonly<{
   question: string;
-  header: string;
   options: ReadonlyArray<{ label: string; description?: string | undefined }>;
   multiSelect: boolean;
 }>;
