@@ -83,6 +83,7 @@ export type WorkspaceController = {
   readonly flushTerminalSync: () => Promise<void>;
 
   readonly agentRunning: boolean;
+  readonly canEdit: boolean;
   readonly busy: boolean;
 };
 

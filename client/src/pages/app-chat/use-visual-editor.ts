@@ -5,25 +5,12 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { getWebContainer } from "@/shared/webcontainer";
 import {
   visualEditorIncomingMessageSchema,
   type VisualEditorElementInfo,
 } from "@/shared/schemas";
-import editScriptSource from "./visual-edit-script.js?raw";
 
 const IFRAME_LOAD_DELAY_MS = 300;
-let previewScriptPromise: Promise<void> | undefined;
-
-const ensurePreviewScript = (): Promise<void> => {
-  previewScriptPromise ??= getWebContainer()
-    .then((container) => container.setPreviewScript(editScriptSource))
-    .catch((error: unknown) => {
-      previewScriptPromise = undefined;
-      throw error;
-    });
-  return previewScriptPromise;
-};
 
 const getOrigin = (url: string | undefined): string | undefined => {
   if (url === undefined) return undefined;
@@ -99,10 +86,6 @@ export function useVisualEditor(previewUrl?: string): VisualEditorState {
       }
     }, IFRAME_LOAD_DELAY_MS);
   }, [postToIframe]);
-
-  useEffect(() => {
-    void ensurePreviewScript().catch(() => undefined);
-  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<unknown>): void => {

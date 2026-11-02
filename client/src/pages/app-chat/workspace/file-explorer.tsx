@@ -37,7 +37,8 @@ export function FileExplorer(): ReactNode {
   const [selectedDir, setSelectedDir] = useState("");
   const [prompt, setPrompt] = useState<NamePrompt>();
   const [deleteTarget, setDeleteTarget] = useState<string>();
-  const disabled = workspace.agentRunning || workspace.busy;
+  const disabled =
+    !workspace.canEdit || workspace.agentRunning || workspace.busy;
 
   const runMutation = (operation: Promise<void>): void => {
     void operation.catch((cause: unknown) => {
@@ -118,6 +119,7 @@ export function FileExplorer(): ReactNode {
             <TreeItem
               key={node.path}
               node={node}
+              disabled={disabled}
               depth={0}
               collapsed={collapsed}
               selectedDir={selectedDir}
@@ -237,6 +239,7 @@ function NamePromptDialog({
 type BadgeKind = "none" | "dirty" | "conflict";
 
 type TreeItemProps = {
+  readonly disabled: boolean;
   readonly node: WorkspaceNode;
   readonly depth: number;
   readonly collapsed: ReadonlySet<string>;
@@ -251,6 +254,7 @@ type TreeItemProps = {
 };
 
 function TreeItem({
+  disabled,
   node,
   depth,
   collapsed,
@@ -298,6 +302,7 @@ function TreeItem({
             <span className="truncate">{node.name}</span>
           </button>
           <NodeActions
+            disabled={disabled}
             onRename={() => onRename(node.path)}
             onDelete={() => onDelete(node.path)}
           />
@@ -308,6 +313,7 @@ function TreeItem({
               <TreeItem
                 key={child.path}
                 node={child}
+                disabled={disabled}
                 depth={depth + 1}
                 collapsed={collapsed}
                 selectedDir={selectedDir}
@@ -358,6 +364,7 @@ function TreeItem({
           ) : null}
         </button>
         <NodeActions
+          disabled={disabled}
           onRename={() => onRename(node.path)}
           onDelete={() => onDelete(node.path)}
         />
@@ -367,18 +374,20 @@ function TreeItem({
 }
 
 function NodeActions({
+  disabled,
   onRename,
   onDelete,
 }: {
+  readonly disabled: boolean;
   readonly onRename: () => void;
   readonly onDelete: () => void;
 }): ReactNode {
   return (
     <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
-      <IconButton label="Rename" onClick={onRename} disabled={false}>
+      <IconButton label="Rename" onClick={onRename} disabled={disabled}>
         <Pencil />
       </IconButton>
-      <IconButton label="Delete" onClick={onDelete} disabled={false}>
+      <IconButton label="Delete" onClick={onDelete} disabled={disabled}>
         <Trash2 />
       </IconButton>
     </span>

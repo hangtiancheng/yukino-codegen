@@ -26,6 +26,7 @@ export default {
     "iconv-lite",
     "ioredis",
     "minio",
+    "node-pty",
     "mysql2",
     "node-cron",
     "nodemailer",

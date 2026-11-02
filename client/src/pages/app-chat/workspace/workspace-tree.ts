@@ -1,4 +1,3 @@
-import type { FileSystemTree } from "@webcontainer/api";
 import type { AgentFileTreeNode } from "@/shared/schemas";
 import {
   hashContents,
@@ -35,11 +34,6 @@ export type WorkspaceSnapshot = {
   readonly files: ReadonlyMap<string, WorkspaceFileContent>;
 };
 
-function base64ToBytes(contents: string): Uint8Array {
-  const binary = atob(contents);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
 export function sortNodes(
   nodes: readonly WorkspaceNode[],
 ): readonly WorkspaceNode[] {
@@ -49,31 +43,6 @@ export function sortNodes(
       sensitivity: "base",
     });
   });
-}
-
-export function agentTreeToFileSystem(root: AgentFileTreeNode): FileSystemTree {
-  if (root.type === "file") return {};
-  return buildFileSystem(root.children);
-}
-
-function buildFileSystem(nodes: readonly AgentFileTreeNode[]): FileSystemTree {
-  const result: FileSystemTree = {};
-  for (const node of nodes) {
-    if (isIgnoredSegment(node.name)) continue;
-    if (node.type === "directory") {
-      result[node.name] = { directory: buildFileSystem(node.children) };
-      continue;
-    }
-    result[node.name] = {
-      file: {
-        contents:
-          node.encoding === "base64"
-            ? base64ToBytes(node.contents)
-            : node.contents,
-      },
-    };
-  }
-  return result;
 }
 
 export function snapshotFromAgentTree(

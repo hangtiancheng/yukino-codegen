@@ -1,13 +1,6 @@
-import type { FileSystemTree } from "@webcontainer/api";
 import { describe, expect, it } from "vitest";
 import type { AgentFileTreeNode } from "@/shared/schemas";
 import {
-  base64ToBytes,
-  bytesToBase64,
-  isUtf8Bytes,
-} from "@/pages/app-chat/workspace/webcontainer-fs";
-import {
-  agentTreeToFileSystem,
   dependencyFilesChanged,
   reconcileSavedFile,
   snapshotFromAgentTree,
@@ -34,22 +27,6 @@ function dirNode(
   children: AgentFileTreeNode[],
 ): AgentFileTreeNode {
   return { type: "directory", path, name, children };
-}
-
-function fileContents(tree: FileSystemTree, name: string): string | Uint8Array {
-  const entry = tree[name];
-  if (!entry || !("file" in entry) || !("contents" in entry.file)) {
-    throw new Error(`no file entry: ${name}`);
-  }
-  return entry.file.contents;
-}
-
-function directoryTree(tree: FileSystemTree, name: string): FileSystemTree {
-  const entry = tree[name];
-  if (!entry || !("directory" in entry)) {
-    throw new Error(`no directory entry: ${name}`);
-  }
-  return entry.directory;
 }
 
 function fileState(contents: string): WorkspaceFileState {
@@ -136,48 +113,6 @@ describe("sortNodes", () => {
     const snapshot = nodes.map((node) => node.name);
     sortNodes(nodes);
     expect(nodes.map((node) => node.name)).toEqual(snapshot);
-  });
-});
-
-describe("agentTreeToFileSystem", () => {
-  it("returns an empty tree when the root is a file", () => {
-    expect(
-      agentTreeToFileSystem(fileNode("a.ts", "a.ts", "x", "utf8", "h")),
-    ).toEqual({});
-  });
-
-  it("keeps utf8 files as strings and decodes base64 files to bytes", () => {
-    const tree = agentTreeToFileSystem(
-      dirNode("", "root", [
-        fileNode("app.ts", "app.ts", "const x = 1;", "utf8", "h1"),
-        fileNode("logo.bin", "logo.bin", "aGVsbG8=", "base64", "h2"),
-      ]),
-    );
-
-    expect(fileContents(tree, "app.ts")).toBe("const x = 1;");
-
-    const decoded = fileContents(tree, "logo.bin");
-    expect(decoded).toBeInstanceOf(Uint8Array);
-    if (!(decoded instanceof Uint8Array))
-      throw new Error("expected binary contents");
-    expect(new TextDecoder().decode(decoded)).toBe("hello");
-  });
-
-  it("nests directories and skips ignored directories", () => {
-    const tree = agentTreeToFileSystem(
-      dirNode("", "root", [
-        dirNode("src", "src", [
-          fileNode("src/index.ts", "index.ts", "export {};", "utf8", "h1"),
-        ]),
-        dirNode("node_modules", "node_modules", [
-          fileNode("node_modules/pkg.js", "pkg.js", "junk", "utf8", "h2"),
-        ]),
-      ]),
-    );
-
-    expect(Object.keys(tree)).toEqual(["src"]);
-    const src = directoryTree(tree, "src");
-    expect(fileContents(src, "index.ts")).toBe("export {};");
   });
 });
 
@@ -282,17 +217,5 @@ describe("dependencyFilesChanged", () => {
     expect(dependencyFilesChanged(previous, sourceChanged)).toBe(false);
     expect(dependencyFilesChanged(previous, lockAdded)).toBe(true);
     expect(dependencyFilesChanged(lockAdded, previous)).toBe(true);
-  });
-});
-
-describe("binary transport helpers", () => {
-  it("round-trips arbitrary bytes through base64", () => {
-    const bytes = Uint8Array.from([0, 1, 127, 128, 254, 255]);
-    expect(base64ToBytes(bytesToBase64(bytes))).toEqual(bytes);
-  });
-
-  it("distinguishes valid UTF-8 text from arbitrary binary bytes", () => {
-    expect(isUtf8Bytes(new TextEncoder().encode("你好, workspace"))).toBe(true);
-    expect(isUtf8Bytes(Uint8Array.from([0xff, 0xfe, 0xfd]))).toBe(false);
   });
 });

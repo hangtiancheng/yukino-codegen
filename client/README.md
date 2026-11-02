@@ -604,28 +604,25 @@ The common modal pattern is:
 
 ## Generated App Preview
 
-The chat workspace runs generated Vite projects in a browser-side WebContainer.
+The chat workspace uses Monaco with a resizable file explorer, tabs, conflict diffs, quick file search (`Ctrl/⌘+P`), a status bar, and a collapsible xterm terminal (`Ctrl/⌘+backtick`). Files are read and saved directly through the server file API; the terminal connects to a server PTY over an authenticated WebSocket. Owner/admin permissions gate editing and terminal access.
 
 The preview lifecycle is:
 
 ```text
-GET /api/app/files/:appId
-  -> validate and mount the project file tree
-  -> npm install
-  -> npm run dev -- --host 0.0.0.0
-  -> render the WebContainer server-ready URL in the preview iframe
+POST /api/app/:appId/workspace/preview
+  -> server: npm install --no-audit --no-fund (when dependencies change)
+  -> server: npm run build -- --base=./
+  -> copy dist into a static snapshot
+GET /api/app/:appId/workspace/preview
+  -> poll build status, logs, revision and preview URL
+  -> render the completed build in the preview iframe
 ```
 
-After a generation request completes, the workspace fetches and mounts the latest source tree again. The running Vite server observes those filesystem changes and updates the preview through HMR. The Refresh button uses WebContainer's `reloadPreview` helper.
+Generation completion, saved files, and the Rebuild button request a new build. Terminal commands write directly to the server project; the explorer refreshes its source snapshot periodically, and Rebuild publishes terminal edits to the preview. A failed rebuild keeps the last successful preview and shows the error and logs. There is no development server or hot reload.
 
-WebContainer requires a cross-origin isolated host page. Both the Vite development server and Vite preview server send these headers:
+`GET /api/app/:appId/workspace/terminal` upgrades to WebSocket. The protocol uses client `input`/`resize` messages and server `ready`/`output`/`error`/`exit` messages. Closing the panel closes the shell; Restart terminal opens a new session. New terminal input is paused while the agent runs.
 
-```text
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: credentialless
-```
-
-The visual editor is injected into cross-origin preview responses with `WebContainer.setPreviewScript()`. Parent/preview communication uses `postMessage` and validates the preview origin. Runtime exceptions, rejected promises, and `console.error` calls are surfaced in the chat workspace with an action that sends the error back to the generation agent.
+The static preview server injects the visual selection and runtime error bridge into built HTML. Parent/preview messages validate both source window and origin. Runtime exceptions, rejected promises and `console.error` calls can be sent back to the agent for fixes. The frontend needs no cross-origin isolation headers.
 
 ## Forms and Validation
 

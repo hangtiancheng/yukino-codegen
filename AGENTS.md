@@ -124,4 +124,13 @@ Base path: the server mounts routes under `/${BASE_URL}` and defaults `BASE_URL`
 - `GET /api/app/files/:appId`
   - server: [app-routes.ts](./server/src/routes/app-routes.ts), [app-files.ts](./server/src/routes/app-files.ts)
   - client: [app-files.ts](./client/src/shared/api/app-files.ts)
-  - status: aligned through WebContainer project file trees.
+  - status: aligned through server project file trees.
+
+- `GET /api/app/:appId/workspace/preview` and `POST /api/app/:appId/workspace/preview`
+  - server: [workspace-routes.ts](./server/src/routes/workspace-routes.ts)
+  - client: [server-workspace-api.ts](./client/src/pages/app-chat/workspace/server-workspace-api.ts)
+  - status: aligned; sandbox build status and static dist preview URL.
+- `GET /api/app/:appId/workspace/terminal` (WebSocket)
+  - server: [workspace-routes.ts](./server/src/routes/workspace-routes.ts)
+  - client: [server-workspace-api.ts](./client/src/pages/app-chat/workspace/server-workspace-api.ts)
+  - status: aligned; owner/admin-only server PTY.

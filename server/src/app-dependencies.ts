@@ -15,6 +15,7 @@ import { createStorageHealthCheck } from "./deployment/index.js";
 import { createHealthService, createMetricsService } from "./observability/index.js";
 import { createInMemorySessionStore, createRedisSessionStore } from "./session/index.js";
 import { createUserRepository, createUserService } from "./user/index.js";
+import { WorkspaceManager } from "./workspace/workspace-manager.js";
 
 const createRedisClient = () =>
   env.REDIS_URL === undefined
@@ -43,6 +44,7 @@ export const createDefaultDependencies = (): AppDependencies => {
   const providerConfig = buildProviderConfig(env);
   const { healthProbe: storageHealthProbe } = createConfiguredStorage();
   const runtimeManager = createRuntimeManager({ db, metrics: metricsService });
+  const workspaceManager = new WorkspaceManager({ workDirFor: runtimeManager.workDirFor });
   const baseShutdown = createDefaultShutdown({
     database: db,
     ...(redisClient !== undefined && { redisClient }),
@@ -56,11 +58,13 @@ export const createDefaultDependencies = (): AppDependencies => {
     ),
     metricsService,
     runtimeManager,
+    workspaceManager,
     sessionStore:
       redisClient === undefined
         ? createInMemorySessionStore()
         : createRedisSessionStore(redisClient),
     shutdown: async () => {
+      await workspaceManager.dispose();
       await runtimeManager.disposeAll();
       await baseShutdown();
     },

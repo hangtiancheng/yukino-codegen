@@ -1,19 +1,11 @@
 export type PreviewStatus =
-  | "idle"
-  | "booting"
-  | "mounting"
-  | "installing"
-  | "starting"
-  | "ready"
-  | "failed";
+  "idle" | "installing" | "building" | "ready" | "failed";
 
 const statusMessages: Readonly<Record<PreviewStatus, string>> = {
   idle: "Generate once to preview.",
-  booting: "Starting browser runtime...",
-  mounting: "Syncing project files...",
-  installing: "Installing dependencies in your browser...",
-  starting: "Starting Vite dev server...",
-  ready: "Vite preview is running in your browser.",
+  installing: "Installing dependencies on the server...",
+  building: "Building the app on the server...",
+  ready: "Previewing the latest successful build.",
   failed: "Preview failed to start.",
 };
 

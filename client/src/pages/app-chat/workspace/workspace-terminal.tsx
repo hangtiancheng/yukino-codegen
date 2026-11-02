@@ -34,7 +34,9 @@ export function WorkspaceTerminal(): ReactNode {
     const safeFit = (): void => {
       try {
         fitAddon.fit();
-      } catch {}
+      } catch {
+        // The hidden panel may not have measurable dimensions yet.
+      }
     };
     safeFit();
 

@@ -56,11 +56,13 @@ export function PreviewPanel({
           <Button
             variant="ghost"
             size="sm"
-            disabled={previewUrl === undefined}
+            disabled={
+              generating || status === "installing" || status === "building"
+            }
             onClick={onRefresh}
           >
             <RefreshCw className="size-4" aria-hidden="true" />
-            Refresh
+            Rebuild
           </Button>
           {canEdit && previewUrl !== undefined ? (
             <Button
@@ -78,6 +80,14 @@ export function PreviewPanel({
           ) : null}
         </div>
       </header>
+      {previewUrl !== undefined && status === "failed" ? (
+        <div className="border-destructive/30 bg-destructive/10 border-b p-3 text-sm">
+          <p className="text-destructive">
+            {error ?? "Build failed. Showing the last successful build."}
+          </p>
+          {logs.length > 0 ? <AnsiLogView logs={logs} /> : null}
+        </div>
+      ) : null}
       <div className="bg-secondary/30 min-h-96 flex-1">
         {previewUrl !== undefined ? (
           <iframe

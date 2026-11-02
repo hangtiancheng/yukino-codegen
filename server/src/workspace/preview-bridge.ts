@@ -1,4 +1,5 @@
-(function () {
+// Injected into built HTML by the isolated static preview service.
+export const previewBridge = `(function () {
   let isEditMode = false;
   let currentHoverElement = null;
   let currentSelectedElement = null;
@@ -44,7 +45,7 @@
       "  pointer-events: none;",
       "  z-index: -1;",
       "}",
-    ].join("\n");
+    ].join("\\n");
     document.head.appendChild(style);
   }
 
@@ -221,6 +222,7 @@
   }
 
   window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
     const msg = event.data;
     if (!msg || !msg.type) return;
 
@@ -262,3 +264,24 @@
     initialize();
   }
 })();
+
+(function () {
+  function send(message) { window.parent.postMessage(message, "*"); }
+  function describe(value) {
+    if (value instanceof Error) return value.message;
+    if (typeof value === "string") return value;
+    try { var encoded = JSON.stringify(value); return typeof encoded === "string" ? encoded : String(value); } catch (_) { return String(value); }
+  }
+  window.addEventListener("error", function (event) {
+    send({ type: "PREVIEW_UNCAUGHT_EXCEPTION", message: event.message || "Runtime error", stack: event.error instanceof Error ? event.error.stack : undefined });
+  });
+  window.addEventListener("unhandledrejection", function (event) {
+    send({ type: "PREVIEW_UNHANDLED_REJECTION", message: describe(event.reason), stack: event.reason instanceof Error ? event.reason.stack : undefined });
+  });
+  var original = console.error;
+  console.error = function () {
+    send({ type: "PREVIEW_CONSOLE_ERROR", args: Array.from(arguments).map(describe) });
+    original.apply(console, arguments);
+  };
+})();
+`;

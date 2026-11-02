@@ -60,7 +60,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string>();
 
-  const { activePath, agentRunning } = workspace;
+  const { activePath, agentRunning, canEdit } = workspace;
   const activeFile =
     activePath !== undefined ? workspace.getFileState(activePath) : undefined;
   const hasConflict = activeFile?.conflict !== undefined;
@@ -87,7 +87,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
           fontSize: 13,
           scrollBeyondLastLine: false,
           tabSize: 2,
-          readOnly: false,
+          readOnly: true,
         });
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
           const path = latestRef.current.activePath;
@@ -128,6 +128,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
       if (conflict === undefined) return;
       const diffEditor = ensureDiffEditor(monaco, diffHostRef, diffEditorRef);
       if (diffEditor === null) return;
+      diffEditor.updateOptions({ readOnly: !canEdit || agentRunning });
       disposeDiffModels(diffModelsRef);
       const language = languageForPath(activePath);
       const original = monaco.editor.createModel(conflict.server, language);
@@ -141,7 +142,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
     disposeDiffModels(diffModelsRef);
     diffEditorRef.current?.setModel(null);
 
-    const readOnly = agentRunning || (activeFile?.binary ?? false);
+    const readOnly = !canEdit || agentRunning || (activeFile?.binary ?? false);
     editor.updateOptions({ readOnly });
 
     if (
@@ -171,7 +172,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
       applyingExternalRef,
     );
     editor.layout();
-  }, [ready, activePath, hasConflict, activeFile, agentRunning]);
+  }, [ready, activePath, hasConflict, activeFile, agentRunning, canEdit]);
 
   useEffect(() => {
     if (!active || !ready) return;
@@ -233,7 +234,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={agentRunning || workspace.busy}
+                disabled={!canEdit || agentRunning || workspace.busy}
                 onClick={() =>
                   reportWorkspaceError(workspace.acceptAgentChanges(activePath))
                 }
@@ -243,7 +244,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={agentRunning || workspace.busy}
+                disabled={!canEdit || agentRunning || workspace.busy}
                 onClick={() =>
                   reportWorkspaceError(
                     workspace.keepLocalChanges(
@@ -264,6 +265,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
                 aria-label="Save"
                 title="Save (Cmd/Ctrl+S)"
                 disabled={
+                  !canEdit ||
                   agentRunning ||
                   workspace.busy ||
                   activePath === undefined ||
@@ -282,7 +284,7 @@ export function CodeEditorPanel({ active }: CodeEditorPanelProps): ReactNode {
                 size="sm"
                 aria-label="Save all"
                 title="Save all"
-                disabled={agentRunning || workspace.busy}
+                disabled={!canEdit || agentRunning || workspace.busy}
                 onClick={() => reportWorkspaceError(workspace.saveAll())}
               >
                 <SaveAll className="size-4" aria-hidden="true" />

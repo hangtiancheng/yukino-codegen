@@ -72,6 +72,7 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
       <WorkspaceProvider
         appId={app.id}
         enabled
+        canEdit={canManage}
         agentRunning={agentRunning}
         filesRevision={state.filesRevision}
       >

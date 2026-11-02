@@ -13,13 +13,15 @@ import { type AppHonoEnv, requireAdmin } from "../session/index.js";
 
 export type AppAdminRoutesDeps = Readonly<{
   appService: AppService;
+  onDelete?: (appId: bigint) => Promise<void>;
 }>;
 
-export const createAppAdminRoutes = ({ appService }: AppAdminRoutesDeps) =>
+export const createAppAdminRoutes = ({ appService, onDelete }: AppAdminRoutesDeps) =>
   new Hono<AppHonoEnv>()
     .post("/delete", requireAdmin, zValidator("json", appIdBodySchema), async (c) => {
       const { id } = c.req.valid("json");
       const ok = await appService.adminDeleteApp(id);
+      if (ok) await onDelete?.(id);
       return c.json(createSuccessResponse(ok));
     })
     .post("/update", requireAdmin, zValidator("json", appAdminUpdateSchema), async (c) => {

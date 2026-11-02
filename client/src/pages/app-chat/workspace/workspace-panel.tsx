@@ -54,7 +54,7 @@ export function WorkspacePanel({
           onClick={() => setTab("code")}
           icon={<Code2 className="size-4" aria-hidden="true" />}
         >
-          Code
+          Editor
         </TabButton>
       </div>
       <div className="relative min-h-0 flex-1">

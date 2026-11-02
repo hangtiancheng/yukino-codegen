@@ -14,6 +14,7 @@ const closeServer = (server: ServerType): Promise<void> =>
   });
 
 const dependencies = createDefaultDependencies();
+await dependencies.workspaceManager.listen();
 const { app, injectWebSocket } = createApp(dependencies);
 const server = serve(
   {
@@ -33,6 +34,7 @@ const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   shuttingDown = true;
   console.log(`Received ${signal}; shutting down gracefully`);
   try {
+    await dependencies.workspaceManager.dispose();
     await closeServer(server);
     await dependencies.shutdown?.();
   } catch (error: unknown) {

@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import { z } from "zod";
 import { reportRuntimeIssue } from "@/shared/observability";
-import { getWebContainer } from "@/shared/webcontainer";
 import type { PreviewRuntimeError } from "./build-error-context";
 
 const previewErrorSchema = z.discriminatedUnion("type", [
@@ -52,35 +51,36 @@ export type PreviewErrors = Readonly<{
   latest: PreviewRuntimeError | undefined;
 }>;
 
-export function usePreviewErrors(): PreviewErrors {
+export function usePreviewErrors(
+  iframeRef: RefObject<HTMLIFrameElement | null>,
+  previewUrl?: string,
+): PreviewErrors {
   const [latest, setLatest] = useState<PreviewRuntimeError>();
   const clear = useCallback(() => setLatest(undefined), []);
 
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let cancelled = false;
-    void getWebContainer()
-      .then((container) => {
-        if (cancelled) return;
-        unsubscribe = container.on("preview-message", (message) => {
-          const error = toRuntimeError(message);
-          if (error === undefined) return;
-          setLatest(error);
-          reportRuntimeIssue({
-            kind: "preview-runtime-failure",
-            message: error.message,
-            ...(error.stack !== undefined && {
-              context: { stack: error.stack },
-            }),
-          });
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
+    if (previewUrl === undefined) return;
+    const origin = new URL(previewUrl).origin;
+    const onMessage = (event: MessageEvent<unknown>): void => {
+      if (
+        event.source !== iframeRef.current?.contentWindow ||
+        event.origin !== origin
+      )
+        return;
+      const error = toRuntimeError(event.data);
+      if (error === undefined) return;
+      setLatest(error);
+      reportRuntimeIssue({
+        kind: "preview-runtime-failure",
+        message: error.message,
+        ...(error.stack !== undefined && {
+          context: { stack: error.stack },
+        }),
+      });
     };
-  }, []);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [iframeRef, previewUrl]);
 
   return { clear, latest };
 }

@@ -23,6 +23,7 @@ import { createAppProjectArchive } from "./app-download.js";
 export type AppRoutesDeps = Readonly<{
   appService: AppService;
   projectRootDir?: string;
+  onDelete?: (appId: bigint) => Promise<void>;
 }>;
 
 const requireUserId = (user: SessionUser | undefined): bigint => {
@@ -32,7 +33,7 @@ const requireUserId = (user: SessionUser | undefined): bigint => {
   return BigInt(user.id);
 };
 
-export const createAppRoutes = ({ appService, projectRootDir }: AppRoutesDeps) =>
+export const createAppRoutes = ({ appService, projectRootDir, onDelete }: AppRoutesDeps) =>
   new Hono<AppHonoEnv>()
     .post("/add", requireLogin, zValidator("json", appAddSchema), async (c) => {
       const userId = requireUserId(c.get("user"));
@@ -50,6 +51,7 @@ export const createAppRoutes = ({ appService, projectRootDir }: AppRoutesDeps) =
       const userId = requireUserId(c.get("user"));
       const { id } = c.req.valid("json");
       const ok = await appService.deleteApp(id, userId);
+      if (ok) await onDelete?.(id);
       return c.json(createSuccessResponse(ok));
     })
     .get(
@@ -87,6 +89,9 @@ export const createAppRoutes = ({ appService, projectRootDir }: AppRoutesDeps) =
       const result = await appService.awesomeListAppVoByPage(c.req.valid("json"));
       return c.json(createSuccessResponse(result));
     })
-    .route("/admin", createAppAdminRoutes({ appService }));
+    .route(
+      "/admin",
+      createAppAdminRoutes({ appService, ...(onDelete !== undefined && { onDelete }) }),
+    );
 
 export type AppRoutes = ReturnType<typeof createAppRoutes>;

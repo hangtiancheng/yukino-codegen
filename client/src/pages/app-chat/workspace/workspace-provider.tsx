@@ -6,6 +6,7 @@ import { WorkspaceContext } from "./workspace-context";
 export type WorkspaceProviderProps = {
   readonly appId: AppId;
   readonly enabled: boolean;
+  readonly canEdit: boolean;
   readonly agentRunning: boolean;
   readonly filesRevision: number;
   readonly children: ReactNode;
@@ -14,6 +15,7 @@ export type WorkspaceProviderProps = {
 export function WorkspaceProvider({
   appId,
   enabled,
+  canEdit,
   agentRunning,
   filesRevision,
   children,
@@ -21,6 +23,7 @@ export function WorkspaceProvider({
   const controller = useWorkspaceController({
     appId,
     enabled,
+    canEdit,
     agentRunning,
     filesRevision,
   });

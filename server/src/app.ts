@@ -22,6 +22,7 @@ import {
 } from "./routes/index.js";
 import { type AppHonoEnv, type SessionStore, sessionMiddleware } from "./session/index.js";
 import type { UserService } from "./user/index.js";
+import type { WorkspaceManager } from "./workspace/workspace-manager.js";
 
 export type AppDependencies = Readonly<{
   appService: AppService;
@@ -34,6 +35,7 @@ export type AppDependencies = Readonly<{
   sessionStore: SessionStore;
   shutdown?: () => Promise<void>;
   userService: UserService;
+  workspaceManager: WorkspaceManager;
 }>;
 
 export { createDefaultDependencies } from "./app-dependencies.js";
@@ -67,6 +69,7 @@ export const createApp = (deps: AppDependencies): CreatedApp => {
     "/app",
     createAppRoutes({
       appService: deps.appService,
+      onDelete: (appId) => deps.workspaceManager.disposeApp(appId),
       ...(deps.projectRootDir !== undefined && {
         projectRootDir: deps.projectRootDir,
       }),
@@ -78,6 +81,7 @@ export const createApp = (deps: AppDependencies): CreatedApp => {
       appService: deps.appService,
       manager: deps.runtimeManager,
       upgradeWebSocket,
+      workspaces: deps.workspaceManager,
     }),
   );
   api.route("/chat-history", createChatHistoryRoutes({ appService: deps.appService, db: deps.db }));

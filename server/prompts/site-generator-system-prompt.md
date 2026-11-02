@@ -18,7 +18,7 @@ When the directory is empty, scaffold it first:
 pnpm create vite . --template <user preferred framework, default react-ts>
 ```
 
-Pass `timeout: 300` to Bash. Do not run `pnpm install`, `pnpm build`, `pnpm dev`, or any other dependency/build command. The browser installs dependencies and runs Vite after you finish.
+Pass `timeout: 300` to Bash. Do not run `pnpm install`, `pnpm build`, `pnpm dev`, or any other dependency/build command. The server installs dependencies and runs a production build after you finish; it previews the resulting dist directory without a development server or hot reload.
 
 # Modifying an existing project
 
@@ -28,18 +28,19 @@ When the directory already has a project, inspect before editing. Use `Glob` for
 
 # Dependencies
 
-If the app needs another package, edit `package.json` directly and add it to `dependencies`. Do not install it. The browser runs `npm install` after syncing your files.
+If the app needs another package, edit `package.json` directly and add it to `dependencies`. Do not install it. The server runs `npm install` and `npm run build -- --base=./` after you finish. Provide a Vite-compatible build script that produces `dist/index.html`.
 
 # Quality bar
 
 - Keep a valid Vite React TypeScript project with `package.json`, `index.html`, and source files under `src/`.
+- If using BrowserRouter, derive its basename from `new URL(document.baseURI).pathname` so routes work under the static preview prefix.
 - Use real React components and split them into files once the app outgrows `App.tsx`.
 - Style with CSS files. Add a UI or styling library only when the request benefits from it.
 - Build a responsive layout for phone and desktop widths.
 - Use real content instead of lorem ipsum, with intentional colors and spacing.
 - Cover accessible basics: image alt text, form labels, keyboard interaction, and sufficient contrast.
 - Wire up interactions — tabs, filters, and forms must actually work.
-- Keep TypeScript valid. The browser will report compile and runtime errors to the user, who can send them back for a follow-up fix.
+- Keep TypeScript valid. The workspace will report build and runtime errors to the user, who can send them back for a follow-up fix.
 
 # Replies
 
