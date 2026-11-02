@@ -1,9 +1,9 @@
 import { type ReactNode } from "react";
 import type { AppId } from "@/shared/schemas";
-import { useWorkspaceController } from "./use-workspace-controller";
-import { WorkspaceContext } from "./workspace-context";
+import { PreviewContext } from "./preview-context";
+import { usePreviewController } from "./use-preview-controller";
 
-export type WorkspaceProviderProps = {
+export type PreviewProviderProps = {
   readonly appId: AppId;
   readonly enabled: boolean;
   readonly canEdit: boolean;
@@ -12,15 +12,15 @@ export type WorkspaceProviderProps = {
   readonly children: ReactNode;
 };
 
-export function WorkspaceProvider({
+export function PreviewProvider({
   appId,
   enabled,
   canEdit,
   agentRunning,
   filesRevision,
   children,
-}: WorkspaceProviderProps): ReactNode {
-  const controller = useWorkspaceController({
+}: PreviewProviderProps): ReactNode {
+  const controller = usePreviewController({
     appId,
     enabled,
     canEdit,
@@ -28,8 +28,8 @@ export function WorkspaceProvider({
     filesRevision,
   });
   return (
-    <WorkspaceContext.Provider value={controller}>
+    <PreviewContext.Provider value={controller}>
       {children}
-    </WorkspaceContext.Provider>
+    </PreviewContext.Provider>
   );
 }

@@ -1,10 +1,9 @@
 import { AlertTriangle, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import type { AppId, VisualEditorElementInfo } from "@/shared/schemas";
 import { Button } from "@/shared/ui";
-import { useWorkspace } from "./workspace";
 import { AgentComposer } from "./chat/agent-composer";
 import { ActivityPanel } from "./chat/activity-panel";
 import { ModelPicker, ThinkingPicker } from "./chat/agent-pickers";
@@ -17,6 +16,7 @@ import {
 } from "./chat/permission-dialog";
 import { PlanApprovalDialog } from "./chat/plan-approval-dialog";
 import { RewindDialog } from "./chat/rewind-dialog";
+import { usePreview } from "./preview-context";
 import type {
   AgentRunOptions,
   PermissionDecision,
@@ -85,50 +85,31 @@ export function ChatPane({
   dispatch,
   className,
 }: ChatPaneProps): ReactNode {
-  const workspace = useWorkspace();
+  const preview = usePreview();
   const [input, setInput] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const submittingRef = useRef(false);
   const busy = isAgentBusy(state.runtimeStatus);
   const connected = state.connectionState === "connected";
   const lastCommand = state.commandResults.at(-1);
 
-  const handleSend = async (): Promise<void> => {
+  const handleSend = (): void => {
     const text = input.trim();
     // While a turn runs the message becomes steering (Remote parity), so the
-    // busy guard only applies to the workspace flush below.
-    if (text.length === 0 || !canRun || !connected || submittingRef.current) {
+    // busy guard only applies to the attached visual selection below.
+    if (text.length === 0 || !canRun || !connected) {
       return;
     }
-    const selected = workspace.selectedElement;
-    submittingRef.current = true;
-    setSubmitting(true);
-    try {
-      if (!busy) {
-        await workspace.flushTerminalSync();
-        await workspace.saveAll();
-      }
-      const ok = run(
-        text,
-        selected === undefined || busy ? {} : { selectedElement: selected },
-      );
-      if (ok) {
-        setInput("");
-        if (!busy) workspace.clearSelection();
-      } else {
-        toast.error("Unable to reach the agent");
-      }
-    } catch (cause) {
-      toast.error(
-        cause instanceof Error
-          ? cause.message
-          : "Workspace changes failed to save",
-      );
-    } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
+    const selected = preview.selectedElement;
+    const ok = run(
+      text,
+      selected === undefined || busy ? {} : { selectedElement: selected },
+    );
+    if (ok) {
+      setInput("");
+      if (!busy) preview.clearSelection();
+    } else {
+      toast.error("Unable to reach the agent");
     }
   };
 
@@ -247,14 +228,14 @@ export function ChatPane({
           onAbort={abort}
           candidates={state.candidates}
           running={busy}
-          readOnly={!canRun || state.readOnly || submitting}
+          readOnly={!canRun || state.readOnly}
           connected={connected}
           selectedElementLabel={
-            workspace.selectedElement === undefined
+            preview.selectedElement === undefined
               ? undefined
-              : elementLabel(workspace.selectedElement)
+              : elementLabel(preview.selectedElement)
           }
-          onClearSelectedElement={workspace.clearSelection}
+          onClearSelectedElement={preview.clearSelection}
           history={state.history}
           steering={state.steering}
           followUps={state.followUps}

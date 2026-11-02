@@ -516,29 +516,21 @@ Generated source files remain under:
 tmp/code_output/{appId}/
 ```
 
-The authenticated endpoint below serializes the source tree for the frontend:
+The agent owns that tree; the browser never edits it directly and only consumes
+published builds. Workspace endpoints (under the configured API base path):
 
-```text
-GET /api/app/files/:appId
-```
+| Endpoint                             | Behavior                                                   |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `POST /app/:appId/workspace/preview` | Start or join a sandboxed build; return current status     |
+| `GET /app/:appId/workspace/preview`  | Read status, bounded build logs, revision, and preview URL |
 
-The frontend edits these files directly with Monaco. It does not maintain a second project filesystem.
+The server uses `Sandbox.createSandbox()` from `@yukino.js/yukino` (Linux bubblewrap / macOS seatbelt). Missing sandbox support fails without executing the command. Linux requires `bubblewrap` and usable user namespaces; containers must permit those namespaces. Dependency/build processes receive a reduced environment with a separate temporary home/cache, so backend credentials are not inherited. Yukino's OS sandbox restricts writes; it is not a VM or a complete multi-tenant isolation boundary. Run the service under a dedicated OS account/container when hosting untrusted projects.
 
-Workspace endpoints (under the configured API base path):
-
-| Endpoint                             | Behavior                                                     |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `POST /app/:appId/workspace/preview` | Start or join a sandboxed build; return current status       |
-| `GET /app/:appId/workspace/preview`  | Read status, bounded build logs, revision, and preview URL   |
-| `GET /app/:appId/workspace/terminal` | Owner/admin-only WebSocket to a real `node-pty` bash session |
-
-The server uses `Sandbox.createSandbox()` from `@yukino.js/yukino` (Linux bubblewrap / macOS seatbelt). Missing sandbox support fails without executing the command. Linux requires `bubblewrap` and usable user namespaces; containers must permit those namespaces. Native `node-pty` builds may require a C++ compiler, `make`, and Python. Dependency/build processes receive a reduced environment with a separate temporary home/cache, so backend credentials are not inherited. Yukino's OS sandbox restricts writes; it is not a VM or a complete multi-tenant isolation boundary. Run the service under a dedicated OS account/container when hosting untrusted projects.
-
-Builds run `npm install --no-audit --no-fund` when dependency manifests change, followed by `npm run build -- --base=./`. Generated projects must provide a Vite-compatible `build` script producing `dist/index.html`. No development server is started. Every successful build copies `dist` into a private snapshot and publishes it atomically; failures preserve the last successful preview. Build timeouts kill the process group. Idle expiry, app deletion, and shutdown revoke preview URLs and close terminals.
+Builds run `npm install --no-audit --no-fund` when dependency manifests change, followed by `npm run build -- --base=./`. Generated projects must provide a Vite-compatible `build` script producing `dist/index.html`. No development server is started. Every successful build copies `dist` into a private snapshot and publishes it atomically; failures preserve the last successful preview. Build timeouts kill the process group. Idle expiry, app deletion, and shutdown revoke preview URLs.
 
 The static preview listener uses `PREVIEW_HOST` (default `0.0.0.0`) and `PREVIEW_PORT` (default `3001`). Set `PREVIEW_PUBLIC_URL` to an externally reachable, separate origin for deployments, and proxy that origin to the listener. Without it, the API derives the preview host from the request URL with `PREVIEW_PORT`. Only `/p/<random-capability>/...` serves build artifacts. URLs expire with the workspace; API cookies are never used by the static listener. Keep capability URLs private. All other paths return 404; paths and symlinks must remain inside the snapshot. HTML receives a base URL and the selection/error bridge. SPA document navigation falls back to `index.html`, while missing assets return 404.
 
-`WORKSPACE_BUILD_TIMEOUT_MS` defaults to `300000`; idle expiry uses `AGENT_WORKSPACE_IDLE_MS`. Terminal concurrency is capped at four per app. Terminal input requires owner/admin access and a trusted WebSocket Origin, and new input is ignored while the agent runs. Commands already running in a terminal continue until completion or session disposal.
+`WORKSPACE_BUILD_TIMEOUT_MS` defaults to `300000`; idle expiry uses `AGENT_WORKSPACE_IDLE_MS`.
 
 ## Storage
 

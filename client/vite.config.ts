@@ -8,6 +8,21 @@ import { sentryPlugin } from "@yukino.js/sentry/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), sentryPlugin({ dsn: "/sentry" })],
+  build: {
+    rollupOptions: {
+      onwarn(warning, warn) {
+        // zod's prose comments mention `@__PURE__`, which Rollup flags as an
+        // annotation in an uninterpretable position; not actionable downstream.
+        if (
+          warning.code === "INVALID_ANNOTATION" &&
+          warning.id?.includes("node_modules/")
+        ) {
+          return;
+        }
+        warn(warning);
+      },
+    },
+  },
   server: {
     proxy: {
       "/api": {

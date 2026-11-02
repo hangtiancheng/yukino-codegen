@@ -7,14 +7,6 @@ export {
   type ApiErrorKind,
 } from "./api-error";
 export {
-  createAgentDirectory,
-  deleteAgentEntry,
-  fetchAgentFileTree,
-  isAgentFileConflictResponse,
-  renameAgentEntry,
-  writeAgentFile,
-} from "./agent-files-api";
-export {
   addApp,
   deleteApp,
   deleteAppByAdmin,

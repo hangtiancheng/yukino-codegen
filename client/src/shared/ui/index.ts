@@ -1,4 +1,3 @@
-export { AppCard, type AppCardProps } from "./app-card";
 export { AppDetailModal, type AppDetailModalProps } from "./app-detail-modal";
 export {
   Avatar,

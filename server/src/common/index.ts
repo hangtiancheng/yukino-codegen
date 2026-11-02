@@ -12,7 +12,6 @@ export {
   verifyPasswordWithUpgrade,
 } from "./crypto.js";
 export { ErrorCode } from "./error-code.js";
-export { MAX_PROJECT_FILE_BODY_BYTES, MAX_PROJECT_FILE_BYTES } from "./file-limits.js";
 export { HttpError } from "./http-error.js";
 export type { EntityId } from "./id.schema.js";
 export { idSchema, idStringSchema } from "./id.schema.js";

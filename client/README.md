@@ -169,7 +169,7 @@ client/
       page-transition.tsx         Route transition wrapper
     pages/
       home/                       Landing page, app list, prompt composer
-      app-chat/                   Chat workspace, preview, stream handling, visual editor context
+      app-chat/                   Chat pane, live preview, agent stream handling, visual editor context
       app-edit/                   App edit form and info panel
       user-login/                 Login page
       user-register/              Registration page
@@ -182,7 +182,7 @@ client/
       api/                        HTTP client, endpoint clients, stream client, response decoding
       auth/                       Auth boundary, route guards, user store
       config/                     Runtime environment, endpoint paths, URL builders
-      layout/                     Basic layout, header, footer, navigation
+      layout/                     Basic layout, header (including chat app context), navigation
       lib/                        Small shared utilities
       observability/              Runtime issue reporting
       query/                      Query client, query keys, query and mutation hooks
@@ -493,9 +493,7 @@ src/pages/app-chat/
 Responsibilities:
 
 - Load app metadata and chat history.
-- Manage chat stream lifecycle.
-- Append streamed AI chunks.
-- Render messages.
+- Drive the agent WebSocket transcript (events, permissions, plan approval, rewind).
 - Render generated preview iframe.
 - Refresh static previews.
 - Track selected visual editor context.
@@ -504,16 +502,19 @@ Important files:
 
 ```text
 app-chat-page.tsx
-app-chat-workspace.tsx
 app-chat-content.tsx
-use-chat-session.ts
-use-chat-history-feed.ts
+app-chat-workspace.tsx
+chat-pane.tsx
+chat/agent-composer.tsx
+chat/agent-transcript-view.tsx
+use-agent-socket.ts
+use-agent-transcript.ts
+preview-pane.tsx
 preview-panel.tsx
-message-list.tsx
-chat-composer.tsx
-chat-actions.tsx
-chat-stream-url.ts
-selected-element-context.ts
+preview-provider.tsx
+use-preview-controller.ts
+preview-api.ts
+use-preview-errors.ts
 use-visual-editor.ts
 ```
 
@@ -572,7 +573,6 @@ src/shared/ui/
 Examples:
 
 ```text
-app-card.tsx
 app-detail-modal.tsx
 auth-card.tsx
 avatar.tsx
@@ -604,7 +604,7 @@ The common modal pattern is:
 
 ## Generated App Preview
 
-The chat workspace uses Monaco with a resizable file explorer, tabs, conflict diffs, quick file search (`Ctrl/⌘+P`), a status bar, and a collapsible xterm terminal (`Ctrl/⌘+backtick`). Files are read and saved directly through the server file API; the terminal connects to a server PTY over an authenticated WebSocket. Owner/admin permissions gate editing and terminal access.
+The chat page devotes the whole viewport below the header to two panes: the agent chat on the left and the live preview on the right. There is no in-browser code editor — source changes go through the agent, and the preview is the only rendering surface.
 
 The preview lifecycle is:
 
@@ -618,9 +618,7 @@ GET /api/app/:appId/workspace/preview
   -> render the completed build in the preview iframe
 ```
 
-Generation completion, saved files, and the Rebuild button request a new build. Terminal commands write directly to the server project; the explorer refreshes its source snapshot periodically, and Rebuild publishes terminal edits to the preview. A failed rebuild keeps the last successful preview and shows the error and logs. There is no development server or hot reload.
-
-`GET /api/app/:appId/workspace/terminal` upgrades to WebSocket. The protocol uses client `input`/`resize` messages and server `ready`/`output`/`error`/`exit` messages. Closing the panel closes the shell; Restart terminal opens a new session. New terminal input is paused while the agent runs.
+Agent completion, agent file changes, and the Rebuild button request a new build. A failed rebuild keeps the last successful preview and shows the error and logs. There is no development server or hot reload.
 
 The static preview server injects the visual selection and runtime error bridge into built HTML. Parent/preview messages validate both source window and origin. Runtime exceptions, rejected promises and `console.error` calls can be sent back to the agent for fixes. The frontend needs no cross-origin isolation headers.
 
@@ -854,7 +852,6 @@ Story files are colocated with the components or pages they document. Examples:
 ```text
 src/pages/app-chat/app-chat.stories.tsx
 src/pages/admin-shared/admin-tables.stories.tsx
-src/shared/ui/app-card.stories.tsx
 src/shared/ui/feedback-states.stories.tsx
 src/shared/ui/foundation.stories.tsx
 src/shared/ui/markdown-renderer.stories.tsx

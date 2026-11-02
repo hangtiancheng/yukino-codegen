@@ -2,7 +2,6 @@ import { createHash, randomBytes } from "node:crypto";
 import { cp, lstat, readFile, realpath, rm, stat } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { join, resolve, sep } from "node:path";
-import type { IPty } from "node-pty";
 import { env } from "../config/index.js";
 import { type SandboxFactory, SandboxSession } from "./sandbox-session.js";
 import { servePreview } from "./static-preview.js";
@@ -26,8 +25,6 @@ type Workspace = {
   artifact?: string;
   releases: Map<number, string>;
   dependenciesHash?: string;
-  terminals: Map<IPty, Promise<void>>;
-  pendingTerminals: number;
 };
 type Options = {
   workDirFor: (appId: bigint) => string;
@@ -61,9 +58,7 @@ export class WorkspaceManager {
         workDir: this.options.workDirFor(appId),
         lastActivity: Date.now(),
         state: { status: "idle", logs: "", revision: 0 },
-        terminals: new Map(),
         releases: new Map(),
-        pendingTerminals: 0,
       };
       this.workspaces.set(key, workspace);
       this.tokens.set(workspace.token, workspace);
@@ -187,68 +182,6 @@ export class WorkspaceManager {
     }
   }
 
-  async openTerminal(
-    appId: bigint,
-    cols: number,
-    rows: number,
-    onData: (data: string) => void,
-    onExit: (code: number) => void,
-  ) {
-    const workspace = this.get(appId);
-    if (workspace.terminals.size + workspace.pendingTerminals >= 4)
-      throw new Error("Too many terminals for this app");
-    workspace.pendingTerminals += 1;
-    try {
-      const session = await this.session(workspace);
-      if (this.closing || !this.tokens.has(workspace.token)) throw new Error("Workspace closed");
-      const prepared = await session.prepare("exec bash --noprofile --norc -i");
-      let terminal: IPty;
-      try {
-        const pty = await import("node-pty");
-        if (this.closing || !this.tokens.has(workspace.token)) throw new Error("Workspace closed");
-        terminal = pty.spawn(prepared.executable, prepared.args, {
-          name: "xterm-256color",
-          cols,
-          rows,
-          cwd: workspace.workDir,
-          env: prepared.env,
-        });
-      } catch (error) {
-        await prepared.cleanup?.();
-        throw error;
-      }
-      terminal.onData((data) => {
-        workspace.lastActivity = Date.now();
-        onData(data);
-      });
-      const completion = new Promise<void>((resolve) =>
-        terminal.onExit(({ exitCode }) => {
-          workspace.terminals.delete(terminal);
-          onExit(exitCode);
-          void Promise.resolve(prepared.cleanup?.())
-            .catch(() => undefined)
-            .finally(resolve);
-        }),
-      );
-      workspace.terminals.set(terminal, completion);
-      return {
-        write: (data: string) => {
-          workspace.lastActivity = Date.now();
-          terminal.write(data);
-        },
-        resize: (width: number, height: number) => terminal.resize(width, height),
-        dispose: () => {
-          try {
-            terminal.kill();
-          } catch {}
-        },
-        completion,
-      };
-    } finally {
-      workspace.pendingTerminals -= 1;
-    }
-  }
-
   async listen(port = env.PREVIEW_PORT, host = env.PREVIEW_HOST): Promise<number> {
     if (this.server !== undefined) throw new Error("Preview server already started");
     const server = createServer((request, response) => {
@@ -288,13 +221,6 @@ export class WorkspaceManager {
   private async disposeWorkspace(workspace: Workspace) {
     this.tokens.delete(workspace.token);
     workspace.abort?.abort();
-    const completions = [...workspace.terminals.values()];
-    for (const terminal of workspace.terminals.keys()) {
-      try {
-        terminal.kill();
-      } catch {}
-    }
-    await Promise.all(completions);
     await workspace.build;
     await workspace.session?.then((session) => session.dispose()).catch(() => undefined);
   }

@@ -17,7 +17,7 @@ An AI code-generation platform powered by the [Yukino](https://github.com/hangti
 
 ## What is this?
 
-Yukino Codegen turns a natural-language prompt into a complete web application. Behind the chat box runs a full coding agent — the same engine as the Yukino terminal agent — equipped with real file tools (`ReadFile`, `WriteFile`, `EditFile`, `Glob`, `Grep`, `Bash`), writing an actual Vite + TypeScript project to disk on the server. The server installs dependencies and runs the production build inside a Yukino OS sandbox, then serves an isolated snapshot of `dist`. The browser provides a Monaco editor, a file explorer, and an xterm terminal connected to the same server project.
+Yukino Codegen turns a natural-language prompt into a complete web application. Behind the chat box runs a full coding agent — the same engine as the Yukino terminal agent — equipped with real file tools (`ReadFile`, `WriteFile`, `EditFile`, `Glob`, `Grep`, `Bash`), writing an actual Vite + TypeScript project to disk on the server. The server installs dependencies and runs the production build inside a Yukino OS sandbox, then serves an isolated snapshot of `dist`. The browser keeps the full viewport for the two things that matter: the chat and the live preview of that build.
 
 Then the conversation continues: ask for changes, click an element in the live preview to edit it visually, or send compile/runtime errors straight back to the agent for a fix. Every turn is persisted, resumable, and snapshotted with git.
 
@@ -28,7 +28,7 @@ Then the conversation continues: ask for changes, click an element in the live p
 - **Visual editing** — select an element in the live preview and describe the change; the agent maps it back to source. Preview errors can be fed back as context for the next turn.
 - **Full agent workspace per app** — sessions with transcript replay, permission modes, MCP servers (stdio / HTTP / SSE, secrets encrypted at rest with AES-256-GCM), lifecycle hooks, skills, memory, subagents, and teams.
 - **Git-backed safety** — automatic snapshots of each generated project per turn, with snapshot listing and rewind.
-- **Complete product surface** — auth, app gallery ("awesome" list), my-apps, chat history, zip download, Monaco code editor + xterm terminal, and admin consoles for users, apps, and chats.
+- **Complete product surface** — auth, app gallery ("awesome" list), my-apps, chat history, zip download, and admin consoles for users, apps, and chats.
 - **Production-minded backend** — Zod-validated env that refuses unsafe production defaults, Redis-backed sessions and rate limiting, MinIO object storage, Prometheus metrics and health probes.
 
 ## How it works
@@ -40,7 +40,6 @@ flowchart TB
     subgraph Browser["Browser"]
         direction TB
         Chat["Chat UI"]
-        Editor["Monaco editor + file explorer + xterm"]
         Preview["Live preview"]
     end
 
@@ -60,17 +59,15 @@ flowchart TB
 
     Prompt --> Chat
     Chat <-->|"WebSocket transcript / tool events"| Api
-    Chat --> Editor
     Static --> Preview
     Preview -.->|"errors & element selection"| Api
-    Editor <-->|"file API + terminal WebSocket"| Api
 ```
 
 ## Tech stack
 
 | Layer   | Stack                                                                                                                                                 |
 | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Client  | React 19 · Vite 7 · TypeScript (strict) · Tailwind CSS 4 · TanStack Query/Form/Virtual · Zustand · Monaco Editor · xterm.js · GSAP |
+| Client  | React 19 · Vite 7 · TypeScript (strict) · Tailwind CSS 4 · TanStack Query/Form/Virtual · Zustand · GSAP |
 | Server  | Hono 4 · Node.js · TypeScript (strict) · Zod 4 · Prisma 7 · PostgreSQL · Redis (optional) · MinIO (optional) · `@yukino.js/yukino` agent runtime      |
 | Quality | Vitest · ESLint + unicorn (client) · Biome (server) · Prettier                                                                                        |
 
@@ -80,8 +77,7 @@ flowchart TB
 
 - Node.js ≥ 20 and pnpm
 - PostgreSQL (required)
-- Linux: `bubblewrap` with user namespaces enabled; macOS: `sandbox-exec` (seatbelt). Builds and terminals require an available Yukino OS sandbox.
-- A C++ compiler, `make`, and Python may be needed to build `node-pty` when no prebuilt binary is available.
+- Linux: `bubblewrap` with user namespaces enabled; macOS: `sandbox-exec` (seatbelt). Builds require an available Yukino OS sandbox.
 - Redis (optional locally; required in production)
 - An OpenAI-compatible model endpoint (e.g. a local Ollama, DeepSeek, or any compatible gateway)
 
@@ -153,8 +149,8 @@ For remote hosting, set `PREVIEW_PUBLIC_URL` to a separate preview origin and pr
 │   └── src/
 │       ├── agent-runtime/      Yukino agent integration: runtime manager, MCP,
 │       │                       hooks, skills, memory, teams, git snapshots, WS protocol
-│       ├── routes/             user · app · agent (ws/rest/files) · chat-history · management
-│       ├── workspace/          Sandboxed builds, PTY terminals, static dist previews
+│       ├── routes/             user · app · agent (ws/rest) · chat-history · management
+│       ├── workspace/          Sandboxed builds, static dist previews
 │       ├── session/            Session stores (Redis / in-memory) & auth middleware
 │       ├── deployment/         Storage adapters (local / MinIO) & static serving
 │       ├── observability/      Health checks, Prometheus metrics, request context

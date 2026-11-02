@@ -1,29 +1,19 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Group, Panel, Separator } from "react-resizable-panels";
-import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { cn } from "cn";
 import { selectIsAdmin, useUserStore } from "@/shared/auth";
 import { useMediaQuery } from "@/shared/lib";
-import { useDeleteApp, useDeleteAppByAdmin } from "@/shared/query";
 import { type AppVo } from "@/shared/schemas";
-import { AppDetailModal } from "@/shared/ui";
 import { buildPreviewFixPrompt } from "./build-error-context";
-import { handleChatDownload } from "./chat-action-handlers";
-import { ChatHeader } from "./chat-header";
 import { ChatPane } from "./chat-pane";
+import { PreviewPane } from "./preview-pane";
+import { PreviewProvider } from "./preview-provider";
 import { useAgentSocket } from "./use-agent-socket";
 import { isAgentBusy, useAgentTranscript } from "./use-agent-transcript";
-import { WorkspacePanel, WorkspaceProvider } from "./workspace";
 
 export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
-  const navigate = useNavigate();
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const user = useUserStore((state) => state.user);
   const isAdmin = useUserStore(selectIsAdmin);
-  const deleteApp = useDeleteApp();
-  const deleteAppByAdmin = useDeleteAppByAdmin();
 
   const isOwner = app.userId === user?.id;
   const canManage = isAdmin || isOwner;
@@ -60,19 +50,11 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
   ]);
 
   return (
-    <div className="flex h-[calc(100dvh-7.75rem)] min-h-[40rem] flex-col gap-2.5 px-3 py-3 md:px-4 md:py-4">
-      <ChatHeader
-        app={app}
-        canManage={canManage}
-        downloading={downloading}
-        onDetails={() => setDetailsOpen(true)}
-        onEdit={() => navigate(`/app/edit/${app.id}`)}
-        onDownload={() => handleChatDownload(app, setDownloading)}
-      />
-      <WorkspaceProvider
+    <div className="flex h-full min-h-0 flex-col gap-2 p-2 md:gap-2.5 md:p-2.5">
+      <PreviewProvider
         appId={app.id}
         enabled
-        canEdit={canManage}
+        canEdit={isOwner}
         agentRunning={agentRunning}
         filesRevision={state.filesRevision}
       >
@@ -113,7 +95,7 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
             />
           </Separator>
           <Panel defaultSize={stacked ? "48" : "58"} minSize="30">
-            <WorkspacePanel
+            <PreviewPane
               className="h-full"
               canEdit={isOwner}
               canFix={canManage && !state.replaying}
@@ -125,24 +107,7 @@ export function AppChatWorkspace({ app }: { readonly app: AppVo }): ReactNode {
             />
           </Panel>
         </Group>
-      </WorkspaceProvider>
-      <AppDetailModal
-        open={detailsOpen}
-        app={app}
-        showActions={canManage}
-        onOpenChange={setDetailsOpen}
-        onEdit={() => navigate(`/app/edit/${app.id}`)}
-        onDelete={() => {
-          const mutation = isAdmin ? deleteAppByAdmin : deleteApp;
-          mutation.mutate(
-            { id: app.id },
-            {
-              onSuccess: () => navigate("/", { replace: true }),
-              onError: () => toast.error("Delete failed"),
-            },
-          );
-        }}
-      />
+      </PreviewProvider>
     </div>
   );
 }

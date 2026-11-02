@@ -5,7 +5,6 @@ import type { AppService } from "../app-module/index.js";
 import type { AppHonoEnv } from "../session/index.js";
 import type { WorkspaceManager } from "../workspace/workspace-manager.js";
 import { registerAgentCapabilityRoutes } from "./agent-capability-routes.js";
-import { registerAgentFileRoutes } from "./agent-files.js";
 import { registerAgentMcpRoutes } from "./agent-mcp-routes.js";
 import { registerAgentWs } from "./agent-ws.js";
 import { registerWorkspaceRoutes } from "./workspace-routes.js";
@@ -26,8 +25,11 @@ export const createAgentRoutes = (deps: AgentRoutesDeps) => {
   });
   registerAgentMcpRoutes(router, { appService: deps.appService, manager: deps.manager });
   registerAgentCapabilityRoutes(router, { appService: deps.appService, manager: deps.manager });
-  registerAgentFileRoutes(router, { appService: deps.appService, manager: deps.manager });
-  registerWorkspaceRoutes(router, deps);
+  registerWorkspaceRoutes(router, {
+    appService: deps.appService,
+    manager: deps.manager,
+    workspaces: deps.workspaces,
+  });
   return router;
 };
 

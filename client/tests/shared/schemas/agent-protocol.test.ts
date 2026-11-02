@@ -1,44 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   agentClientMessageSchema,
-  agentFileMutationResponseSchema,
-  agentFilePathSchema,
   agentRuntimeStatusSchema,
   agentServerMessageSchema,
 } from "@/shared/schemas/agent-protocol";
-
-describe("agentFilePathSchema", () => {
-  it("accepts clean relative POSIX paths", () => {
-    for (const value of [
-      "src/App.tsx",
-      "package.json",
-      "a/b/c/d.ts",
-      "index.ts",
-    ]) {
-      expect(agentFilePathSchema.safeParse(value).success).toBe(true);
-    }
-  });
-
-  it("rejects traversal, absolute, backslash, empty, and forbidden paths", () => {
-    for (const value of [
-      "../x",
-      "src/../../etc",
-      "/abs",
-      "a\\b",
-      "a//b",
-      "a/",
-      "",
-      "./a",
-      "a/./b",
-      ".git",
-      "a/.git/config",
-      "node_modules/pkg/index.js",
-      "a\u0000b",
-    ]) {
-      expect(agentFilePathSchema.safeParse(value).success).toBe(false);
-    }
-  });
-});
 
 describe("agentRuntimeStatusSchema", () => {
   it("normalizes SCREAMING_SNAKE_CASE and rejects unknown values", () => {
@@ -170,39 +135,5 @@ describe("agentServerMessageSchema", () => {
     expect(agentServerMessageSchema.safeParse({ type: "nope" }).success).toBe(
       false,
     );
-  });
-});
-
-describe("agentFileMutationResponseSchema", () => {
-  it("discriminates successful and conflict mutations", () => {
-    expect(
-      agentFileMutationResponseSchema.safeParse({
-        status: "ok",
-        result: { path: "src/x.ts", hash: "abc123" },
-      }).success,
-    ).toBe(true);
-    expect(
-      agentFileMutationResponseSchema.safeParse({
-        status: "conflict",
-        conflict: {
-          path: "src/x.ts",
-          expectedHash: null,
-          actualHash: "def456",
-          message: "stale write",
-        },
-      }).success,
-    ).toBe(true);
-  });
-
-  it("rejects incomplete and unknown mutation envelopes", () => {
-    expect(
-      agentFileMutationResponseSchema.safeParse({
-        status: "ok",
-        conflict: { path: "x", expectedHash: null, actualHash: "h" },
-      }).success,
-    ).toBe(false);
-    expect(
-      agentFileMutationResponseSchema.safeParse({ status: "maybe" }).success,
-    ).toBe(false);
   });
 });

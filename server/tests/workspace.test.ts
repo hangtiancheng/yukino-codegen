@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -146,15 +146,6 @@ describe("server workspace builds and static snapshots", () => {
     expect(state.status).toBe("failed");
     expect(state.error).toContain("sandbox is unavailable");
     expect(commands).toEqual([]);
-    await expect(
-      manager.openTerminal(
-        1n,
-        80,
-        24,
-        () => {},
-        () => {},
-      ),
-    ).rejects.toThrow("sandbox is unavailable");
   });
 
   it("times out a build and kills the process group", async () => {
@@ -165,26 +156,6 @@ describe("server workspace builds and static snapshots", () => {
     expect(state.status).toBe("failed");
     expect(state.error).toContain("timed out");
     expect(state.path).toBeUndefined();
-  });
-
-  it("opens a real resizable PTY against the server project and disposes it", async () => {
-    const { manager, directory } = await fixture();
-    let output = "";
-    const terminal = await manager.openTerminal(
-      1n,
-      80,
-      24,
-      (data) => {
-        output += data;
-      },
-      () => {},
-    );
-    terminal.resize(101, 33);
-    terminal.write("printf 'terminal file' > terminal.txt; stty size\r");
-    await vi.waitUntil(() => output.includes("33 101"), { timeout: 5000 });
-    expect(await readFile(join(directory, "terminal.txt"), "utf8")).toBe("terminal file");
-    terminal.dispose();
-    await terminal.completion;
   });
 });
 

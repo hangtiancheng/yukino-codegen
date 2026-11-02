@@ -88,14 +88,14 @@ export function PreviewPanel({
           {logs.length > 0 ? <AnsiLogView logs={logs} /> : null}
         </div>
       ) : null}
-      <div className="bg-secondary/30 min-h-96 flex-1">
+      <div className="bg-secondary/30 min-h-0 flex-1">
         {previewUrl !== undefined ? (
           <iframe
             ref={iframeRef}
             title="Generated app preview"
             src={previewUrl}
             onLoad={onIframeLoad}
-            className="bg-card h-full min-h-96 w-full"
+            className="bg-card h-full w-full"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
           />
         ) : (
@@ -124,7 +124,7 @@ function PreviewPlaceholder({
 }): ReactNode {
   if (status === "failed") {
     return (
-      <div className="flex h-full min-h-96 flex-col justify-center gap-3 p-6 text-sm">
+      <div className="flex h-full flex-col justify-center gap-3 p-6 text-sm">
         <p className="text-destructive font-medium">
           {error ?? "Preview failed to start."}
         </p>
@@ -143,14 +143,14 @@ function PreviewPlaceholder({
   }
   if (status !== "idle") {
     return (
-      <div className="text-muted-foreground flex h-full min-h-96 flex-col items-center justify-center gap-3 text-sm">
+      <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 text-sm">
         <Loader2 className="size-8 animate-spin" aria-hidden="true" />
         {getPreviewStatusMessage(status)}
       </div>
     );
   }
   return (
-    <div className="text-muted-foreground flex h-full min-h-96 items-center justify-center text-sm">
+    <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
       No preview available yet.
     </div>
   );
