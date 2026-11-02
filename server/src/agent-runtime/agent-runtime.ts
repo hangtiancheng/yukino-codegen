@@ -446,7 +446,6 @@ export class AgentRuntime {
       // Remote parity: registers EnterPlanMode/ExitPlanMode so the model can
       // drive the plan-approval flow from the browser.
       enableModelPlanMode: true,
-      forkDisabled: false,
       hooks: buildHookConfigs(hookRows),
       mcpServers: mcpRows.map(toYukinoMcpConfig),
       // Gates the startup long-term-memory injection; per-turn injection and
