@@ -28,7 +28,7 @@
     "@hono/zod-validator": "^0.7.6",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "@yukino.js/yukino": "file:../../yukino-code/apps/yukino",
+    "@yukino.js/yukino": "latest",
     "archiver": "^7.0.1",
     "dayjs": "^1.11.23",
     "dotenv": "^17.4.2",
