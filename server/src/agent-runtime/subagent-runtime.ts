@@ -1,4 +1,4 @@
-import { Subagent } from "@yukino.js/yukino";
+import { type AgentDefinition, loadAgentDefinitions } from "@yukino.js/yukino";
 
 export type SubagentVo = Readonly<{
   name: string;
@@ -9,7 +9,7 @@ export type SubagentVo = Readonly<{
 }>;
 
 export const listSubagents = (): SubagentVo[] =>
-  Subagent.Loader.loadAgentDefinitions().map((definition: Subagent.Definition.AgentDefinition) => ({
+  loadAgentDefinitions().map((definition: AgentDefinition) => ({
     background: definition.background ?? false,
     description: definition.description,
     name: definition.name,

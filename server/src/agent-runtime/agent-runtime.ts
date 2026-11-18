@@ -5,27 +5,77 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   Agent,
-  Bootstrap,
-  Commands,
-  Compact,
-  Config,
-  Conversation,
-  Goal,
-  Images,
-  LLM,
-  MCP,
-  Memory,
-  Permissions,
-  PlanFile,
-  Prompt,
-  Remote,
-  Sandbox,
-  Skills,
-  Subagent,
-  Teams,
-  Tools,
-  Utils,
-  Workflow,
+  type AgentEvent,
+  type Asker,
+  asErrorString,
+  BackgroundMemoryTasks,
+  BashTool,
+  backgroundAllForegroundTasks,
+  buildPlanModeExitReminder,
+  buildPlanModeReentryReminder,
+  buildSkillSection,
+  buildSystemPrompt,
+  type CommandContext,
+  contentToText,
+  coordinatorActive,
+  coordinatorToolFilter,
+  countMcpTools,
+  createClient,
+  createRemoteAgent,
+  createSandbox,
+  currentContextTokens,
+  DEFAULT_THINKING_LEVEL,
+  type Decision,
+  decideAndApply,
+  detectEnvironment,
+  discoverModels,
+  executeUserBash,
+  expandAtRefsWithImages,
+  filterFileMatches,
+  forceCompact,
+  formatAgentTaskNotification,
+  getContextWindow,
+  getMaxOutputTokens,
+  getOrCreatePlanPath,
+  getSupportedThinkingLevels,
+  getWorkflowService,
+  handleGoalCommand,
+  hasAnyForegroundTasks,
+  isRecord as isYukinoRecord,
+  loadInstructions,
+  MCPManager,
+  MCPToolWrapper,
+  type Message,
+  PermissionChecker,
+  type PermissionMode,
+  type PlanOwner,
+  parseUserBashCommand,
+  plainTerminalText,
+  planExists,
+  type Question,
+  REVIEW_AGENT_NAME,
+  type RemoteAgentHandle,
+  type RemoteSubagentEvent,
+  removeMcpTools,
+  retractMcpInstructions,
+  runFork,
+  runInline,
+  runSubagentCommand,
+  type Sandbox,
+  type Skill,
+  type SkillForkHost,
+  type SubagentProgressEvent,
+  scanCwdFiles,
+  sniffMediaType,
+  spawnSubagent,
+  syncMcpInstructions,
+  type ThinkingBlock,
+  type ThinkingLevel,
+  type ToolResult,
+  type ToolResultBlock,
+  type ToolUseBlock,
+  type UserBashResult,
+  userBashContext,
 } from "@yukino.js/yukino";
 import { env } from "../config/index.js";
 import type { AgentPermissionMode, AgentSessionStatus } from "../generated/prisma/enums.js";
@@ -104,25 +154,25 @@ type ReplyFn = (message: AgentServerMessage) => void;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const isMessageContent = (value: unknown): value is Conversation.Message["content"] =>
+const isMessageContent = (value: unknown): value is Message["content"] =>
   typeof value === "string" || (Array.isArray(value) && value.every((item) => isRecord(item)));
 
-const isThinkingBlock = (value: unknown): value is Conversation.ThinkingBlock =>
+const isThinkingBlock = (value: unknown): value is ThinkingBlock =>
   isRecord(value) && typeof value.thinking === "string" && typeof value.signature === "string";
 
-const isToolUseBlock = (value: unknown): value is Conversation.ToolUseBlock =>
+const isToolUseBlock = (value: unknown): value is ToolUseBlock =>
   isRecord(value) &&
   typeof value.toolUseId === "string" &&
   typeof value.toolName === "string" &&
   isRecord(value.arguments);
 
-const isToolResultBlock = (value: unknown): value is Conversation.ToolResultBlock =>
+const isToolResultBlock = (value: unknown): value is ToolResultBlock =>
   isRecord(value) &&
   typeof value.toolUseId === "string" &&
   isMessageContent(value.content) &&
   typeof value.isError === "boolean";
 
-const isMessage = (value: unknown): value is Conversation.Message => {
+const isMessage = (value: unknown): value is Message => {
   if (
     !isRecord(value) ||
     (value.role !== "user" && value.role !== "assistant" && value.role !== "system") ||
@@ -149,7 +199,7 @@ const isMessage = (value: unknown): value is Conversation.Message => {
   );
 };
 
-export const parseSavedConversationMessages = (context: unknown): Conversation.Message[] | null => {
+export const parseSavedConversationMessages = (context: unknown): Message[] | null => {
   if (!isRecord(context) || !Array.isArray(context.messages)) return null;
   return context.messages.every(isMessage) ? context.messages : null;
 };
@@ -157,13 +207,13 @@ export const parseSavedConversationMessages = (context: unknown): Conversation.M
 const parseSavedActiveSkills = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((name): name is string => typeof name === "string") : [];
 
-const isWrappedSystemReminder = (message: Conversation.Message): boolean =>
+const isWrappedSystemReminder = (message: Message): boolean =>
   message.role === "user" &&
   typeof message.content === "string" &&
   message.content.startsWith("<system-reminder>") &&
   message.content.endsWith("</system-reminder>");
 
-const toYukinoMode = (mode: AgentPermissionMode): Permissions.PermissionMode => {
+const toYukinoMode = (mode: AgentPermissionMode): PermissionMode => {
   switch (mode) {
     case "DEFAULT":
       return "default";
@@ -178,7 +228,7 @@ const toYukinoMode = (mode: AgentPermissionMode): Permissions.PermissionMode => 
 
 /**
  * Local-git adaptation of the library's /review prompt: the upstream
- * Commands.Prompts.buildReviewPrompt targets GitHub PRs through `gh`, while
+ * buildReviewPrompt targets GitHub PRs through `gh`, while
  * codegen workspaces are local repositories, so the scope defaults to the
  * uncommitted working tree and free-form args select refs or focus.
  */
@@ -216,7 +266,7 @@ export type RunTurnInput = Readonly<{
   persistedAsSteering?: boolean;
 }>;
 
-/** Live subagent/fork activity, mirrors Remote.Server.RemoteSubagentEvent folding. */
+/** Live subagent/fork activity, mirrors RemoteSubagentEvent folding. */
 type SubagentActivity = {
   toolCallId: string;
   role: string;
@@ -266,7 +316,7 @@ export class AgentRuntime {
   private readonly claimStaleMs: number;
 
   private workspace: AgentWorkspaceModel;
-  private handlePromise: Promise<Remote.Server.RemoteAgentHandle> | undefined;
+  private handlePromise: Promise<RemoteAgentHandle> | undefined;
   private sessionPromise: Promise<string> | undefined;
   private disposePromise: Promise<void> | undefined;
   private sessionId = "";
@@ -278,15 +328,15 @@ export class AgentRuntime {
   private disposing = false;
 
   /** Agent instance driving the in-flight loop; steering target (Remote parity). */
-  private currentAgent: Agent.Agent | null = null;
+  private currentAgent: Agent | null = null;
   /** Set by abort() so steering leftovers are dropped, not replayed. */
   private runCanceled = false;
   /** Messages queued while a turn ran but steering was unavailable. */
   private followUps: RunTurnInput[] = [];
   /** Resolved handle mirror for synchronous access paths. */
-  private resolvedHandle: Remote.Server.RemoteAgentHandle | null = null;
+  private resolvedHandle: RemoteAgentHandle | null = null;
   /** Cursor-based background memory extraction/consolidation (Remote parity). */
-  private memoryTasks: Memory.Background.BackgroundMemoryTasks | null = null;
+  private memoryTasks: BackgroundMemoryTasks | null = null;
   /** Live subagent/fork activity keyed by toolCallId (Remote parity). */
   private readonly subagentStates = new Map<string, SubagentActivity>();
   private activityAttached = false;
@@ -316,7 +366,7 @@ export class AgentRuntime {
   /** Last usage snapshot; feeds the ready payload between runs. */
   private lastUsage = { inputTokens: 0, outputTokens: 0 };
   /** Lazily created OS sandbox for /sandbox toggling (Remote parity). */
-  private sandbox: Promise<Sandbox.Sandbox | null> | null = null;
+  private sandbox: Promise<Sandbox | null> | null = null;
 
   constructor(deps: AgentRuntimeDeps) {
     this.appId = deps.appId;
@@ -416,7 +466,7 @@ export class AgentRuntime {
     return this.sessionId;
   }
 
-  private async ensureHandle(): Promise<Remote.Server.RemoteAgentHandle> {
+  private async ensureHandle(): Promise<RemoteAgentHandle> {
     this.assertAcceptingTasks();
     if (this.handlePromise !== undefined) return this.handlePromise;
     this.handlePromise = this.createHandle().catch((error: unknown) => {
@@ -426,7 +476,7 @@ export class AgentRuntime {
     return this.handlePromise;
   }
 
-  private async createHandle(): Promise<Remote.Server.RemoteAgentHandle> {
+  private async createHandle(): Promise<RemoteAgentHandle> {
     await mkdir(this.workDir, { recursive: true });
     const [mcpRows, hookRows] = await Promise.all([
       this.stores.mcp.listEnabled(this.workspaceId),
@@ -439,7 +489,7 @@ export class AgentRuntime {
       this.workspace.modelOverride,
       this.workspace.thinkingLevel,
     );
-    const handle = await Remote.Server.createRemoteAgent({
+    const handle = await createRemoteAgent({
       askUser: this.askUser,
       cwd: this.workDir,
       enableCoordinatorMode: false,
@@ -473,7 +523,7 @@ export class AgentRuntime {
     return handle;
   }
 
-  private async rehydrate(handle: Remote.Server.RemoteAgentHandle): Promise<void> {
+  private async rehydrate(handle: RemoteAgentHandle): Promise<void> {
     const sessionId = await this.ensureSession();
     const session = await this.stores.sessions.findById(sessionId);
     const savedMessages = parseSavedConversationMessages(session?.context);
@@ -503,7 +553,7 @@ export class AgentRuntime {
     }
   }
 
-  private readonly askUser: Tools.AskUser.Asker = async (questions: Tools.AskUser.Question[]) => {
+  private readonly askUser: Asker = async (questions: Question[]) => {
     this.assertAcceptingTasks();
     const sessionId = this.sessionId;
     const { answers, interactionId } = await this.broker.requestQuestions({
@@ -554,8 +604,8 @@ export class AgentRuntime {
    * recreating the handle. The plan file carries across turns so
    * ExitPlanMode writes and the approval dialog read the same path.
    */
-  private createTurnChecker(): Permissions.PermissionChecker {
-    const checker = new Permissions.PermissionChecker(
+  private createTurnChecker(): PermissionChecker {
+    const checker = new PermissionChecker(
       this.workDir,
       toYukinoMode(this.workspace.permissionMode),
     );
@@ -565,11 +615,11 @@ export class AgentRuntime {
     return checker;
   }
 
-  private buildPermissionCallback(checker: Permissions.PermissionChecker, turnId: string) {
+  private buildPermissionCallback(checker: PermissionChecker, turnId: string) {
     return async (
       toolName: string,
       args: Record<string, unknown>,
-      decision: Permissions.Decision,
+      decision: Decision,
       _toolCallId: string,
       signal?: AbortSignal,
     ): Promise<PermissionDecision> => {
@@ -711,7 +761,7 @@ export class AgentRuntime {
       sessionId,
       type: "ready",
       // Live snapshot (RemoteServer sendUsageSnapshot/statusPayload parity).
-      contextTokens: handle !== null ? Compact.Compact.currentContextTokens(handle.conv) : 0,
+      contextTokens: handle !== null ? currentContextTokens(handle.conv) : 0,
       contextWindow: handle?.contextWindow ?? 0,
       hooksEnabled: this.workspace.hooksEnabled,
       memoryEnabled: this.workspace.memoryEnabled,
@@ -722,7 +772,7 @@ export class AgentRuntime {
       thinkingLevel:
         handle?.client.getThinkingLevel?.() ??
         this.workspace.thinkingLevel ??
-        Config.Constants.DEFAULT_THINKING_LEVEL,
+        DEFAULT_THINKING_LEVEL,
     });
     // Prompt history for composer up/down navigation (Remote parity), derived
     // from the persisted transcript so it survives reconnects and restarts.
@@ -804,10 +854,9 @@ export class AgentRuntime {
       } else if (previousMode === "PLAN") {
         this.hasExitedPlanMode = true;
         this.resolvedHandle?.conv.addSystemReminder(
-          Prompt.PlanMode.buildPlanModeExitReminder(
+          buildPlanModeExitReminder(
             this.planFilePath,
-            this.planFilePath.length > 0 &&
-              PlanFile.planExists({ planFilePath: this.planFilePath }),
+            this.planFilePath.length > 0 && planExists({ planFilePath: this.planFilePath }),
           ),
         );
       }
@@ -875,7 +924,7 @@ export class AgentRuntime {
       return;
     }
     const text = input.input.trim();
-    const userBash = Conversation.UserBash.parseUserBashCommand(text);
+    const userBash = parseUserBashCommand(text);
     if (userBash !== null) {
       await this.runUserBash(
         userBash.command,
@@ -903,8 +952,7 @@ export class AgentRuntime {
     if (text.length === 0) return;
     // Slash and Bash commands run as follow-ups instead of model steering.
     const isCommand =
-      (text.startsWith("/") && parseCommand(text) !== null) ||
-      Conversation.UserBash.parseUserBashCommand(text) !== null;
+      (text.startsWith("/") && parseCommand(text) !== null) || parseUserBashCommand(text) !== null;
     // A cancel sets `runCanceled` before the aborted loop's `finally` clears
     // `currentAgent`/`currentTurnId`. Steering into that dying loop would be
     // persisted as a user_message yet discarded with the drained leftovers,
@@ -943,7 +991,7 @@ export class AgentRuntime {
         payload: { phase: "followup_started", text },
         type: "agent_status",
       });
-      const userBash = Conversation.UserBash.parseUserBashCommand(text);
+      const userBash = parseUserBashCommand(text);
       if (userBash !== null) {
         await this.runUserBash(
           userBash.command,
@@ -963,10 +1011,10 @@ export class AgentRuntime {
   backgroundForegroundShells(): number {
     this.markActivity();
     const handle = this.resolvedHandle;
-    if (handle === null || !Tools.ShellBackground.hasAnyForegroundTasks(handle.registry)) {
+    if (handle === null || !hasAnyForegroundTasks(handle.registry)) {
       return 0;
     }
-    const count = Tools.ShellBackground.backgroundAllForegroundTasks(handle.registry);
+    const count = backgroundAllForegroundTasks(handle.registry);
     this.broadcast({
       payload: { count, phase: "background_shells" },
       type: "agent_status",
@@ -1001,8 +1049,8 @@ export class AgentRuntime {
   }
 
   /** Run-equivalent tool visibility, mirrors Remote's composeAgentToolFilter. */
-  private composeToolFilter(handle: Remote.Server.RemoteAgentHandle): (name: string) => boolean {
-    const coordinatorFilter = Teams.Coordinator.coordinatorToolFilter(false);
+  private composeToolFilter(handle: RemoteAgentHandle): (name: string) => boolean {
+    const coordinatorFilter = coordinatorToolFilter(false);
     return (name) =>
       coordinatorFilter(name) && (handle.toolFilter !== null ? handle.toolFilter(name) : true);
   }
@@ -1083,44 +1131,39 @@ export class AgentRuntime {
         // @-refs expand exactly like the terminal/Remote: the transcript keeps
         // the raw text while the conversation stores the expansion (inlined
         // file contents and image blocks).
-        const expanded = await Conversation.AtExpand.expandAtRefsWithImages(
-          this.composePrompt(input),
-          this.workDir,
-        );
+        const expanded = await expandAtRefsWithImages(this.composePrompt(input), this.workDir);
         handle.conv.addUserMessage(expanded);
       }
 
       if (handle.mcpManager !== null) {
-        MCP.Instructions.syncMcpInstructions(handle.conv, this.mcpAnnounced, handle.mcpManager);
+        syncMcpInstructions(handle.conv, this.mcpAnnounced, handle.mcpManager);
       }
 
       const skillSection =
-        handle.skillCatalog !== null ? Skills.Prompts.buildSkillSection(handle.skillCatalog) : "";
+        handle.skillCatalog !== null ? buildSkillSection(handle.skillCatalog) : "";
 
-      const agent = new Agent.Agent({
+      const agent = new Agent({
         abortSignal: abort.signal,
         activeSkills: handle.activeSkills,
         checker,
         client: handle.client,
         contextWindow: handle.contextWindow,
         conversation: handle.conv,
-        coordinatorActiveFn: () => Teams.Coordinator.coordinatorActive(false),
+        coordinatorActiveFn: () => coordinatorActive(false),
         fileHistory: handle.fileHistory,
         fileStateCache: handle.fileStateCache,
         ...(handle.goalManager !== undefined && { goalManager: handle.goalManager }),
         // Function form (Remote parity): re-read the current instructions and
         // memory index at each (re)injection instead of snapshotting them at
         // handle creation, so edits and runtime toggles survive compaction.
-        instructions: () => Memory.Instructions.loadInstructions(handle.cwd),
+        instructions: () => loadInstructions(handle.cwd),
         maxIterations: env.AI_MAX_ITERATIONS,
-        maxOutput: Config.ProviderConfig.getMaxOutputTokens(handle.provider),
+        maxOutput: getMaxOutputTokens(handle.provider),
         memoryContent: () =>
           this.workspace.memoryEnabled ? handle.memoryManager.buildSystemReminder() : "",
         notificationFn: () => [
           ...handle.teamManager.drainLeaderMailbox(),
-          ...handle.backgroundTaskManager
-            .drainNotifications()
-            .map(Subagent.Prompts.formatAgentTaskNotification),
+          ...handle.backgroundTaskManager.drainNotifications().map(formatAgentTaskNotification),
         ],
         onPermissionRequest: this.buildPermissionCallback(checker, turnId),
         recoveryState: handle.recoveryState,
@@ -1129,9 +1172,7 @@ export class AgentRuntime {
         skillSection,
         skillDeltaFn: () => {
           const section =
-            handle.skillCatalog !== null
-              ? Skills.Prompts.buildSkillSection(handle.skillCatalog)
-              : "";
+            handle.skillCatalog !== null ? buildSkillSection(handle.skillCatalog) : "";
           return section.length > 0 && !handle.conv.hasReminderContaining(section) ? section : "";
         },
         cwd: this.workDir,
@@ -1160,7 +1201,7 @@ export class AgentRuntime {
               outputTokens: event.usage.outputTokens,
             };
             this.broadcast({
-              contextTokens: Compact.Compact.currentContextTokens(handle.conv),
+              contextTokens: currentContextTokens(handle.conv),
               contextWindow: handle.contextWindow,
               inputTokens: event.usage.inputTokens,
               outputTokens: event.usage.outputTokens,
@@ -1239,7 +1280,7 @@ export class AgentRuntime {
   private async dispatchEvent(
     turnId: string,
     adapter: ReturnType<typeof createEventAdapter>,
-    event: Agent.Events.AgentEvent,
+    event: AgentEvent,
   ): Promise<void> {
     for (const output of adapter.mapEvent(event)) {
       if (output.persist) {
@@ -1250,14 +1291,11 @@ export class AgentRuntime {
     }
   }
 
-  private runMemoryMaintenance(
-    handle: Remote.Server.RemoteAgentHandle,
-    conv: Remote.Server.RemoteAgentHandle["conv"],
-  ): void {
+  private runMemoryMaintenance(handle: RemoteAgentHandle, conv: RemoteAgentHandle["conv"]): void {
     // Remote BackgroundMemoryTasks parity: one cursor-tracked task set per
     // runtime, created lazily so extraction only covers the new tail and
     // in-flight LLM calls are settled on dispose.
-    this.memoryTasks ??= new Memory.Background.BackgroundMemoryTasks(handle.client, this.workDir, {
+    this.memoryTasks ??= new BackgroundMemoryTasks(handle.client, this.workDir, {
       appendSystem: (message) => {
         this.resolvedHandle?.conv.addSystemReminder(message);
       },
@@ -1278,7 +1316,7 @@ export class AgentRuntime {
     const points: RewindPoint[] = [];
     for (const item of raw.rewindPoints) {
       if (
-        Utils.isRecord(item) &&
+        isYukinoRecord(item) &&
         typeof item.sha === "string" &&
         typeof item.turnId === "string" &&
         typeof item.messageCount === "number" &&
@@ -1302,7 +1340,7 @@ export class AgentRuntime {
   private async appendRewindPoint(
     sha: string | undefined,
     turnId: string,
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
   ): Promise<RewindPoint[]> {
     const existing = await this.loadRewindPoints();
     if (sha === undefined) return existing;
@@ -1316,7 +1354,7 @@ export class AgentRuntime {
   }
 
   private async finalizeTurn(
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
     turnId: string,
     adapter: ReturnType<typeof createEventAdapter>,
   ): Promise<void> {
@@ -1378,7 +1416,7 @@ export class AgentRuntime {
    * notification wakeup that drains pending task notifications
    * (RemoteServer.attachActivityBridge parity).
    */
-  private attachActivityBridge(handle: Remote.Server.RemoteAgentHandle): void {
+  private attachActivityBridge(handle: RemoteAgentHandle): void {
     if (this.activityAttached) return;
     this.activityAttached = true;
 
@@ -1434,7 +1472,7 @@ export class AgentRuntime {
   }
 
   /** Folds a subagent lifecycle event into the broadcast activity state. */
-  private handleSubagentEvent(ev: Remote.Server.RemoteSubagentEvent): void {
+  private handleSubagentEvent(ev: RemoteSubagentEvent): void {
     const existing = this.subagentStates.get(ev.toolCallId);
     switch (ev.type) {
       case "started":
@@ -1532,8 +1570,8 @@ export class AgentRuntime {
   }
 
   private resolvePlanFilePath(): string {
-    const owner: PlanFile.PlanOwner = { planFilePath: this.planFilePath };
-    const path = PlanFile.getOrCreatePlanPath(owner);
+    const owner: PlanOwner = { planFilePath: this.planFilePath };
+    const path = getOrCreatePlanPath(owner);
     this.planFilePath = owner.planFilePath ?? path;
     return this.planFilePath;
   }
@@ -1551,8 +1589,8 @@ export class AgentRuntime {
     const planPath = this.resolvePlanFilePath();
     this.syncHandleChecker();
     // Re-entering plan mode with an existing plan file replays the reminder.
-    if (this.hasExitedPlanMode && PlanFile.planExists({ planFilePath: this.planFilePath })) {
-      const reminder = Prompt.PlanMode.buildPlanModeReentryReminder(planPath, true);
+    if (this.hasExitedPlanMode && planExists({ planFilePath: this.planFilePath })) {
+      const reminder = buildPlanModeReentryReminder(planPath, true);
       if (reminder.length > 0) {
         this.resolvedHandle?.conv.addSystemReminder(reminder);
       }
@@ -1606,7 +1644,7 @@ export class AgentRuntime {
     this.workspace = { ...this.workspace, permissionMode: nextMode };
     this.syncHandleChecker();
     this.resolvedHandle?.conv.addSystemReminder(
-      Prompt.PlanMode.buildPlanModeExitReminder(this.planFilePath, planContent.length > 0),
+      buildPlanModeExitReminder(this.planFilePath, planContent.length > 0),
     );
     this.broadcast({ mode: nextMode, type: "permission_mode" });
     this.broadcast({
@@ -1640,7 +1678,7 @@ export class AgentRuntime {
     const current = handle.provider.model;
     this.broadcast({ current, models: [], status: "loading", type: "model_list" });
     try {
-      const models = await LLM.ModelDiscovery.discoverModels(
+      const models = await discoverModels(
         {
           api_key: handle.provider.api_key,
           base_url: handle.provider.base_url,
@@ -1686,25 +1724,17 @@ export class AgentRuntime {
     }
     const updated = { ...handle.provider, model: nextModel };
     try {
-      const environment = Prompt.Builder.detectEnvironment(handle.cwd);
+      const environment = detectEnvironment(handle.cwd);
       environment.model = updated.model;
-      const client = await LLM.Client.createClient(
-        updated,
-        Prompt.Builder.buildSystemPrompt(environment),
-      );
+      const client = await createClient(updated, buildSystemPrompt(environment));
       handle.client = client;
       handle.provider = updated;
-      handle.contextWindow = Config.ProviderConfig.getContextWindow(updated);
-      MCP.Strategy.decideAndApply(
-        handle.registry,
-        updated.base_url,
-        updated.protocol,
-        handle.contextWindow,
-      );
+      handle.contextWindow = getContextWindow(updated);
+      decideAndApply(handle.registry, updated.base_url, updated.protocol, handle.contextWindow);
     } catch (error) {
       this.broadcast({
         code: "model_switch_failed",
-        message: `Failed to switch model: ${Utils.asErrorString(error)}`,
+        message: `Failed to switch model: ${asErrorString(error)}`,
         recoverable: true,
         type: "error",
         ...(requestId !== undefined && { requestId }),
@@ -1733,10 +1763,10 @@ export class AgentRuntime {
       current:
         handle.client.getThinkingLevel?.() ??
         this.workspace.thinkingLevel ??
-        Config.Constants.DEFAULT_THINKING_LEVEL,
+        DEFAULT_THINKING_LEVEL,
       levels: [
         ...(handle.client.getSupportedThinkingLevels?.() ??
-          Config.ProviderConfig.getSupportedThinkingLevels(handle.provider)),
+          getSupportedThinkingLevels(handle.provider)),
       ],
       type: "thinking_form",
     });
@@ -1751,9 +1781,9 @@ export class AgentRuntime {
 
   private async applyThinkingLevelLocked(level: string, requestId?: string): Promise<void> {
     const handle = await this.ensureHandle();
-    const setLevel = handle.client.setThinkingLevel?.(level as Config.ProviderConfig.ThinkingLevel);
+    const setLevel = handle.client.setThinkingLevel?.(level as ThinkingLevel);
     const applied = setLevel ?? level;
-    handle.provider.thinking = applied as Config.ProviderConfig.ThinkingLevel;
+    handle.provider.thinking = applied as ThinkingLevel;
     await this.stores.workspaces
       .updateSettings(this.workspaceId, { thinkingLevel: applied })
       .then((workspace) => {
@@ -1771,9 +1801,9 @@ export class AgentRuntime {
 
   // ─────────────────────────── Sandbox (Remote parity) ───────────────────────────
 
-  private getSandbox(): Promise<Sandbox.Sandbox | null> {
+  private getSandbox(): Promise<Sandbox | null> {
     if (this.sandbox === null) {
-      this.sandbox = Sandbox.createSandbox();
+      this.sandbox = createSandbox();
     }
     return this.sandbox;
   }
@@ -1781,7 +1811,7 @@ export class AgentRuntime {
   private async disposeSandbox(): Promise<void> {
     const pending = this.sandbox;
     this.sandbox = null;
-    const bashTool = this.resolvedHandle?.registry.getInstanceOf("Bash", Tools.Bash.BashTool);
+    const bashTool = this.resolvedHandle?.registry.getInstanceOf("Bash", BashTool);
     if (bashTool !== undefined) {
       bashTool.sandbox = null;
       bashTool.sandboxRequired = false;
@@ -1808,7 +1838,7 @@ export class AgentRuntime {
     if (arg === "auto" || arg === "manual") {
       const sandbox = await this.getSandbox();
       const available = (await sandbox?.available()) ?? false;
-      const bashTool = handle.registry.getInstanceOf("Bash", Tools.Bash.BashTool);
+      const bashTool = handle.registry.getInstanceOf("Bash", BashTool);
       if (bashTool !== undefined) {
         bashTool.sandbox = sandbox ?? null;
         bashTool.sandboxRequired = true;
@@ -1874,25 +1904,25 @@ export class AgentRuntime {
       const previous = handle.mcpManager;
       if (previous !== null) {
         await previous.disconnectAll();
-        MCP.Instructions.retractMcpInstructions(handle.conv, this.mcpAnnounced);
+        retractMcpInstructions(handle.conv, this.mcpAnnounced);
       }
-      Bootstrap.ToolRegistry.removeMcpTools(handle.registry);
+      removeMcpTools(handle.registry);
       handle.mcpManager = null;
       return { connected: 0, errors: [], tools: 0 };
     }
-    const manager = handle.mcpManager ?? new MCP.Manager.MCPManager();
+    const manager = handle.mcpManager ?? new MCPManager();
     handle.mcpManager = manager;
-    Bootstrap.ToolRegistry.removeMcpTools(handle.registry);
-    MCP.Instructions.retractMcpInstructions(handle.conv, this.mcpAnnounced);
+    removeMcpTools(handle.registry);
+    retractMcpInstructions(handle.conv, this.mcpAnnounced);
     const result = await manager.reconnectAll(servers);
     for (const { serverName, tool } of result.tools) {
       const client = manager.getClient(serverName);
       if (client !== undefined) {
-        handle.registry.register(new MCP.ToolWrapper.MCPToolWrapper(client, serverName, tool));
+        handle.registry.register(new MCPToolWrapper(client, serverName, tool));
       }
     }
     if (result.tools.length > 0) {
-      MCP.Strategy.decideAndApply(
+      decideAndApply(
         handle.registry,
         handle.provider.base_url,
         handle.provider.protocol,
@@ -1902,7 +1932,7 @@ export class AgentRuntime {
     return {
       connected: manager.connectedServers().length,
       errors: result.errors.map((entry) => `${entry.serverName}: ${String(entry.error)}`),
-      tools: Bootstrap.ToolRegistry.countMcpTools(handle.registry),
+      tools: countMcpTools(handle.registry),
     };
   }
 
@@ -1926,7 +1956,7 @@ export class AgentRuntime {
           `Uploaded image is too large (${String(bytes.length)} bytes, limit ${String(MAX_UPLOAD_IMAGE_BYTES)}).`,
         );
       }
-      const mediaType = Images.sniffMediaType(bytes);
+      const mediaType = sniffMediaType(bytes);
       if (mediaType === null) {
         throw new Error("Uploaded file is not a recognized image (png, jpeg, gif, webp).");
       }
@@ -1950,7 +1980,7 @@ export class AgentRuntime {
     } catch (error) {
       reply({
         clientId: upload.clientId,
-        message: Utils.asErrorString(error),
+        message: asErrorString(error),
         type: "image_error",
       });
     }
@@ -1964,11 +1994,11 @@ export class AgentRuntime {
     if (cache !== null && cache.key === root && Date.now() - cache.scannedAt < FILE_CACHE_TTL_MS) {
       files = cache.files;
     } else {
-      files = Utils.FileScan.scanCwdFiles(root);
+      files = scanCwdFiles(root);
       this.fileCache = { files, key: root, scannedAt: Date.now() };
     }
     reply({
-      matches: Utils.FileScan.filterFileMatches(files, query),
+      matches: filterFileMatches(files, query),
       requestId,
       type: "file_complete_response",
     });
@@ -1992,7 +2022,7 @@ export class AgentRuntime {
         });
         return;
       }
-      const bashTool = handle.registry.getInstanceOf("Bash", Tools.Bash.BashTool);
+      const bashTool = handle.registry.getInstanceOf("Bash", BashTool);
       if (bashTool === undefined) {
         this.sendCommandResult(requestId, "!", false, { error: "Bash tool is unavailable" });
         return;
@@ -2012,16 +2042,16 @@ export class AgentRuntime {
         toolId,
         toolName: "Bash",
       });
-      let result: Tools.ToolResult;
+      let result: ToolResult;
       try {
-        result = await Conversation.UserBash.executeUserBash(
+        result = await executeUserBash(
           bashTool,
           {
             abortSignal: controller.signal,
             cwd: handle.cwd,
             onOutput: (output) => {
               this.broadcast({
-                output: Utils.plainTerminalText(output),
+                output: plainTerminalText(output),
                 toolId,
                 type: "tool_output",
               });
@@ -2032,7 +2062,7 @@ export class AgentRuntime {
           excludeFromContext,
         );
       } catch (error) {
-        result = { isError: true, output: `Error: ${Utils.asErrorString(error)}` };
+        result = { isError: true, output: `Error: ${asErrorString(error)}` };
       }
       this.userBashController = null;
       const elapsed = (Date.now() - started) / 1000;
@@ -2050,7 +2080,7 @@ export class AgentRuntime {
       });
       // Record exactly like the terminal: model context only unless "!!".
       if (!excludeFromContext) {
-        const recorded: Conversation.UserBashResult = {
+        const recorded: UserBashResult = {
           command,
           elapsed,
           excludeFromContext,
@@ -2058,7 +2088,7 @@ export class AgentRuntime {
           output: result.output,
           status,
         };
-        handle.conv.addUserMessage(Conversation.Prompts.userBashContext(recorded));
+        handle.conv.addUserMessage(userBashContext(recorded));
       }
       this.sendCommandResult(requestId, excludeFromContext ? "!!" : "!", true, {
         result: { elapsed, isError: result.isError ?? false, status },
@@ -2074,17 +2104,17 @@ export class AgentRuntime {
    * registry commands may declare any other named agent.
    */
   private runCommandSubagent(
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
     turnId: string,
     agentName: string,
     prompt: string,
     displayText: string,
     abortSignal: AbortSignal,
-  ): Promise<Tools.ToolResult> {
+  ): Promise<ToolResult> {
     // Per-turn checker exactly like executeTurn: the subagent's commands go
     // through the same permission and sandbox gates.
     const checker = this.createTurnChecker();
-    return Commands.Subagent.runSubagentCommand(agentName, prompt, displayText, {
+    return runSubagentCommand(agentName, prompt, displayText, {
       abortSignal,
       conversation: handle.conv,
       cwd: handle.cwd,
@@ -2157,7 +2187,7 @@ export class AgentRuntime {
         });
       } catch (error) {
         this.sendCommandResult(requestId, commandName, false, {
-          error: Utils.asErrorString(error),
+          error: asErrorString(error),
         });
       } finally {
         this.subagentCommandController = null;
@@ -2169,15 +2199,11 @@ export class AgentRuntime {
   // ─────────────── Generic registry command dispatch (Remote parity) ───────────────
 
   /** Command context handed to library command handlers (Remote buildCommandContext parity). */
-  private buildCommandContext(
-    handle: Remote.Server.RemoteAgentHandle,
-    args: string,
-  ): Commands.Commands.CommandContext {
+  private buildCommandContext(handle: RemoteAgentHandle, args: string): CommandContext {
     return {
       args,
       availableThinkingLevels: () =>
-        handle.client.getSupportedThinkingLevels?.() ??
-        Config.ProviderConfig.getSupportedThinkingLevels(handle.provider),
+        handle.client.getSupportedThinkingLevels?.() ?? getSupportedThinkingLevels(handle.provider),
       cwd: handle.cwd,
       memoryList: () =>
         this.workspace.memoryEnabled ? handle.memoryManager.loadAll().map((file) => file.name) : [],
@@ -2194,7 +2220,7 @@ export class AgentRuntime {
           .catch(() => undefined);
       },
       ...(handle.client.setThinkingLevel !== undefined && {
-        setThinkingLevel: (level: Config.ProviderConfig.ThinkingLevel) => {
+        setThinkingLevel: (level: ThinkingLevel) => {
           handle.client.setThinkingLevel?.(level);
           handle.provider.thinking = handle.client.getThinkingLevel?.() ?? level;
         },
@@ -2202,7 +2228,7 @@ export class AgentRuntime {
       thinkingLevel: () =>
         (handle.client.getThinkingLevel?.() ??
           this.workspace.thinkingLevel ??
-          Config.Constants.DEFAULT_THINKING_LEVEL) as Config.ProviderConfig.ThinkingLevel,
+          DEFAULT_THINKING_LEVEL) as ThinkingLevel,
       tokenCount: () => [this.lastUsage.inputTokens, this.lastUsage.outputTokens] as const,
       toolCount: () => handle.registry.listTools().length,
     };
@@ -2215,7 +2241,7 @@ export class AgentRuntime {
    * (RemoteServer.handleSlashCommand generic dispatch parity).
    */
   private async dispatchRegistryCommand(
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
     name: string,
     args: string,
     requestId: string,
@@ -2274,11 +2300,11 @@ export class AgentRuntime {
 
   /** /workflows — the library workflow-run CLI (Remote handleLocalUICommand parity). */
   private async runWorkflowCommand(
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
     args: string,
     requestId: string,
   ): Promise<void> {
-    const service = Workflow.Wiring.getWorkflowService(handle.registry);
+    const service = getWorkflowService(handle.registry);
     if (service === undefined) {
       this.sendCommandResult(requestId, "workflows", false, {
         error: "Workflow service is not initialized",
@@ -2297,7 +2323,7 @@ export class AgentRuntime {
         this.sendCommandResult(requestId, "workflows", true, { result: { message } });
       } catch (error) {
         this.sendCommandResult(requestId, "workflows", false, {
-          error: Utils.asErrorString(error),
+          error: asErrorString(error),
         });
       }
     });
@@ -2389,8 +2415,8 @@ export class AgentRuntime {
 
   /** Runs a fork-mode skill in an isolated subagent (Remote handleSkillFork parity). */
   private async runSkillFork(
-    handle: Remote.Server.RemoteAgentHandle,
-    skill: Skills.Skill,
+    handle: RemoteAgentHandle,
+    skill: Skill,
     args: string,
     requestId: string,
   ): Promise<void> {
@@ -2400,8 +2426,8 @@ export class AgentRuntime {
   }
 
   private async runSkillForkLocked(
-    handle: Remote.Server.RemoteAgentHandle,
-    skill: Skills.Skill,
+    handle: RemoteAgentHandle,
+    skill: Skill,
     args: string,
     requestId: string,
   ): Promise<void> {
@@ -2412,12 +2438,12 @@ export class AgentRuntime {
       type: "agent_status",
     });
     try {
-      const forkHost: Skills.SkillForkHost = {
+      const forkHost: SkillForkHost = {
         activateSkill: (name, body) => {
           handle.activeSkills.set(name, body);
         },
         runSubagent: (prompt, abortSignal, context) =>
-          Subagent.Spawn.spawnSubagent(
+          spawnSubagent(
             {
               description: skill.meta.description,
               name: skill.meta.name,
@@ -2444,18 +2470,18 @@ export class AgentRuntime {
           const messages = handle.conv.getMessages();
           return messages
             .slice(-count)
-            .map((message) => `[${message.role}] ${Utils.contentToText(message.content)}`)
+            .map((message) => `[${message.role}] ${contentToText(message.content)}`)
             .join("\n");
         },
       };
-      const result = await Skills.Executor.runFork(skill, args, forkHost, controller.signal);
+      const result = await runFork(skill, args, forkHost, controller.signal);
       await this.emitPersist(this.currentTurnId, "assistant_message", { text: result });
       this.sendCommandResult(requestId, "skill", true, {
         result: { forked: skill.meta.name },
       });
     } catch (error) {
       this.sendCommandResult(requestId, "skill", false, {
-        error: `Skill fork error: ${Utils.asErrorString(error)}`,
+        error: `Skill fork error: ${asErrorString(error)}`,
       });
     } finally {
       this.forkController = null;
@@ -2463,10 +2489,7 @@ export class AgentRuntime {
   }
 
   /** Maps a subagent progress event onto the activity broadcast state. */
-  private forwardSubagentSink(
-    toolCallId: string,
-    event: Subagent.Spawn.SubagentProgressEvent,
-  ): void {
+  private forwardSubagentSink(toolCallId: string, event: SubagentProgressEvent): void {
     switch (event.type) {
       case "tool_use":
         this.handleSubagentEvent({
@@ -2708,7 +2731,7 @@ export class AgentRuntime {
       this.sendCommandResult(requestId, name, true, {
         result: {
           connected: handle.mcpManager?.connectedServers() ?? [],
-          tools: Bootstrap.ToolRegistry.countMcpTools(handle.registry),
+          tools: countMcpTools(handle.registry),
         },
       });
       return;
@@ -2716,11 +2739,11 @@ export class AgentRuntime {
     if (name === "status") {
       this.sendCommandResult(requestId, name, true, {
         result: {
-          contextTokens: Compact.Compact.currentContextTokens(handle.conv),
+          contextTokens: currentContextTokens(handle.conv),
           contextWindow: handle.contextWindow,
           cwd: handle.cwd,
           mcpServers: handle.mcpManager?.connectedServers().length ?? 0,
-          mcpTools: Bootstrap.ToolRegistry.countMcpTools(handle.registry),
+          mcpTools: countMcpTools(handle.registry),
           memories: this.workspace.memoryEnabled
             ? handle.memoryManager.loadAll().length
             : "disabled",
@@ -2745,7 +2768,7 @@ export class AgentRuntime {
         this.sendCommandResult(requestId, name, false, { error: "Goal tracking is unavailable" });
         return;
       }
-      const result = Goal.handleGoalCommand(handle.goalManager, args);
+      const result = handleGoalCommand(handle.goalManager, args);
       this.sendCommandResult(requestId, name, result.isError !== true, {
         ...(result.isError === true
           ? { error: result.message }
@@ -2817,7 +2840,7 @@ export class AgentRuntime {
     if (name === "review") {
       const displayText = args.trim().length > 0 ? `/review ${args.trim()}` : "/review";
       await this.runSubagentCommandFlow(
-        Subagent.Constants.REVIEW_AGENT_NAME,
+        REVIEW_AGENT_NAME,
         buildReviewPrompt(args),
         displayText,
         "review",
@@ -2888,7 +2911,7 @@ export class AgentRuntime {
         const controller = new AbortController();
         this.compactController = controller;
         try {
-          const result = await Compact.Compact.forceCompact(
+          const result = await forceCompact(
             handle.conv,
             handle.client,
             handle.recoveryState,
@@ -2906,7 +2929,7 @@ export class AgentRuntime {
           });
         } catch (error) {
           this.sendCommandResult(requestId, name, false, {
-            error: Utils.asErrorString(error),
+            error: asErrorString(error),
           });
         } finally {
           this.compactController = null;
@@ -2921,7 +2944,7 @@ export class AgentRuntime {
   }
 
   private async runSkillCommand(
-    handle: Remote.Server.RemoteAgentHandle,
+    handle: RemoteAgentHandle,
     args: string,
     requestId: string,
   ): Promise<void> {
@@ -2947,7 +2970,7 @@ export class AgentRuntime {
       await this.runSkillFork(handle, skill, rest.join(" "), requestId);
       return;
     }
-    const prompt = Skills.Executor.runInline(skill, rest.join(" "), {
+    const prompt = runInline(skill, rest.join(" "), {
       activateSkill: (activatedName, body) => handle.activeSkills.set(activatedName, body),
     });
     this.sendCommandResult(requestId, "skill", true, {

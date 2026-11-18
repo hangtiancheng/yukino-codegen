@@ -1,4 +1,4 @@
-import type { Config } from "@yukino.js/yukino";
+import type { HookConfig } from "@yukino.js/yukino";
 import { z } from "zod";
 import type { AgentHookModel } from "../generated/prisma/models/AgentHook.js";
 
@@ -46,7 +46,7 @@ export const toHookVo = (row: AgentHookModel) => ({
   timeoutMs: row.timeoutMs,
 });
 
-export const toYukinoHookConfig = (row: AgentHookModel): Config.HookConfig => ({
+export const toYukinoHookConfig = (row: AgentHookModel): HookConfig => ({
   id: row.id,
   event: row.event,
   action: { type: "command", command: row.command },

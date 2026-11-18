@@ -1,4 +1,4 @@
-import { type Config, MCP } from "@yukino.js/yukino";
+import { MCPManager, type MCPServerConfig } from "@yukino.js/yukino";
 
 export type McpTestResult = Readonly<{
   connected: boolean;
@@ -6,8 +6,8 @@ export type McpTestResult = Readonly<{
   error?: string;
 }>;
 
-export const testMcpConnection = async (config: Config.MCPServerConfig): Promise<McpTestResult> => {
-  const manager = new MCP.Manager.MCPManager();
+export const testMcpConnection = async (config: MCPServerConfig): Promise<McpTestResult> => {
+  const manager = new MCPManager();
   try {
     const result = await manager.connectAll([config]);
     const connected = result.servers.includes(config.name);

@@ -1,4 +1,9 @@
-import { Skills, type Tools } from "@yukino.js/yukino";
+import {
+  InstallSkillTool,
+  SkillCatalog,
+  type SkillMeta,
+  type ToolContext,
+} from "@yukino.js/yukino";
 
 export type SkillVo = Readonly<{
   name: string;
@@ -8,7 +13,7 @@ export type SkillVo = Readonly<{
   forkContext?: "full" | "recent" | "none";
 }>;
 
-const toVo = (meta: Skills.SkillMeta): SkillVo => ({
+const toVo = (meta: SkillMeta): SkillVo => ({
   description: meta.description,
   mode: meta.mode ?? "inline",
   name: meta.name,
@@ -17,7 +22,7 @@ const toVo = (meta: Skills.SkillMeta): SkillVo => ({
 });
 
 export const createSkillRuntime = (workDir: string) => {
-  const catalog = new Skills.Catalog.SkillCatalog();
+  const catalog = new SkillCatalog();
   catalog.load(workDir);
 
   const list = (): SkillVo[] => {
@@ -34,8 +39,8 @@ export const createSkillRuntime = (workDir: string) => {
     source: string,
     name?: string,
   ): Promise<{ ok: boolean; output: string }> => {
-    const tool = new Skills.InstallSkillTool.InstallSkillTool(workDir, catalog);
-    const ctx: Tools.ToolContext = { cwd: workDir };
+    const tool = new InstallSkillTool(workDir, catalog);
+    const ctx: ToolContext = { cwd: workDir };
     const result = await tool.execute(ctx, {
       source,
       ...(name !== undefined && { name }),

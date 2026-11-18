@@ -1,4 +1,4 @@
-import { Memory } from "@yukino.js/yukino";
+import { MemoryManager } from "@yukino.js/yukino";
 
 export type MemoryVo = Readonly<{
   name: string;
@@ -12,9 +12,9 @@ export const createMemoryRuntime = (
 ): Readonly<{
   clear: () => void;
   list: () => MemoryVo[];
-  manager: Memory.Manager.MemoryManager;
+  manager: MemoryManager;
 }> => {
-  const manager = new Memory.Manager.MemoryManager(workDir);
+  const manager = new MemoryManager(workDir);
 
   const list = (): MemoryVo[] =>
     manager.loadAll().map((file) => ({

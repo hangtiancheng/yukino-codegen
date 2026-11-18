@@ -1,4 +1,10 @@
-import { Commands } from "@yukino.js/yukino";
+import {
+  type Command,
+  type CommandRegistry,
+  createDefaultRegistry,
+  loadUserCommands,
+  parse,
+} from "@yukino.js/yukino";
 
 export type CommandCandidate = Readonly<{
   name: string;
@@ -55,15 +61,15 @@ export const SERVER_SUPPORTED_COMMANDS = new Set([
  * registry provides (ultracode, user commands, named workflows, direct skill
  * invocations). Terminal-only commands stay rejected.
  */
-export const isExecutableCommand = (command: Commands.Commands.Command): boolean => {
+export const isExecutableCommand = (command: Command): boolean => {
   if (SERVER_SUPPORTED_COMMANDS.has(command.name)) return true;
   if (TERMINAL_ONLY_COMMANDS.has(command.name)) return false;
   return command.type === "prompt" || command.type === "skill_fork" || command.type === "local";
 };
 
-const createFallbackRegistry = (): Commands.Commands.CommandRegistry => {
-  const registry = Commands.Commands.createDefaultRegistry();
-  for (const command of Commands.Loader.loadUserCommands()) {
+const createFallbackRegistry = (): CommandRegistry => {
+  const registry = createDefaultRegistry();
+  for (const command of loadUserCommands()) {
     if (registry.find(command.name) === undefined) registry.register(command);
   }
   return registry;
@@ -77,7 +83,7 @@ const createFallbackRegistry = (): Commands.Commands.CommandRegistry => {
  * /skills (Remote /help parity).
  */
 export const buildCommandCandidates = (
-  registry: Commands.Commands.CommandRegistry = createFallbackRegistry(),
+  registry: CommandRegistry = createFallbackRegistry(),
 ): CommandCandidate[] => {
   const supported = registry
     .listCommands()
@@ -93,6 +99,6 @@ export const buildCommandCandidates = (
 
 export type ParsedCommand = Readonly<{ name: string; args: string }>;
 
-export const parseCommand = (input: string): ParsedCommand | null => Commands.Commands.parse(input);
+export const parseCommand = (input: string): ParsedCommand | null => parse(input);
 
 export const isSkillCommand = (name: string): boolean => name === "skill";

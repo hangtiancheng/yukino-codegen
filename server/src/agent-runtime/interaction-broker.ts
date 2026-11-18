@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Permissions } from "@yukino.js/yukino";
+import type { Decision } from "@yukino.js/yukino";
 import type { AgentPendingInteractionMessage } from "./protocol.js";
 import type { AgentStores } from "./stores.js";
 import type { PermissionDecision, QuestionAnswers } from "./types.js";
@@ -226,7 +226,7 @@ export type InteractionBroker = ReturnType<typeof createInteractionBroker>;
 export const toPermissionPayload = (
   toolName: string,
   args: Record<string, unknown>,
-  decision: Permissions.Decision,
+  decision: Decision,
   description: string,
 ): PermissionRequestPayload => ({
   args,

@@ -1,4 +1,4 @@
-import type { Config } from "@yukino.js/yukino";
+import type { MCPServerConfig } from "@yukino.js/yukino";
 import { z } from "zod";
 import type { AgentMcpTransport } from "../generated/prisma/enums.js";
 import type { AgentMcpServerModel } from "../generated/prisma/models/AgentMcpServer.js";
@@ -120,7 +120,7 @@ export const toMcpVo = (row: AgentMcpServerModel) => ({
   lastCheckedTime: row.lastCheckedTime,
 });
 
-export const toYukinoMcpConfig = (row: AgentMcpServerModel): Config.MCPServerConfig => ({
+export const toYukinoMcpConfig = (row: AgentMcpServerModel): MCPServerConfig => ({
   name: row.name,
   transport: wireTransport(row.transport),
   ...(row.command !== null && { command: row.command }),

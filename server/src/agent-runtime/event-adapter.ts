@@ -1,4 +1,4 @@
-import type { Agent } from "@yukino.js/yukino";
+import type { AgentEvent } from "@yukino.js/yukino";
 import type { AgentServerMessage } from "./protocol.js";
 
 export type TranscriptKind =
@@ -47,7 +47,7 @@ export const createEventAdapter = () => {
   let outcome: TurnOutcome = "pending";
   let errorMessage: string | undefined;
 
-  const mapEvent = (event: Agent.Events.AgentEvent): AdapterOutput[] => {
+  const mapEvent = (event: AgentEvent): AdapterOutput[] => {
     switch (event.type) {
       case "stream_text": {
         narrationParts.push(event.text);

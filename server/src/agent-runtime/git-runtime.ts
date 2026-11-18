@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { Worktree } from "@yukino.js/yukino";
+import { createAgentWorktree, removeAgentWorktree, type WorktreeResult } from "@yukino.js/yukino";
 import { env } from "../config/index.js";
 
 const run = promisify(execFile);
@@ -31,7 +31,7 @@ export type GitSnapshot = Readonly<{
 }>;
 
 export type GitRuntimeApi = Readonly<{
-  createWorktree: (slug: string, gitRoot?: string) => Promise<Worktree.WorktreeResult>;
+  createWorktree: (slug: string, gitRoot?: string) => Promise<WorktreeResult>;
   ensureRepo: (dir: string) => Promise<boolean>;
   listSnapshots: (dir: string, limit?: number) => Promise<readonly GitSnapshot[]>;
   listWorktrees: (dir: string) => Promise<readonly string[]>;
@@ -114,12 +114,12 @@ export const createGitRuntime = (): GitRuntimeApi => {
   };
 
   return {
-    createWorktree: (slug: string, gitRoot?: string) => Worktree.createAgentWorktree(slug, gitRoot),
+    createWorktree: (slug: string, gitRoot?: string) => createAgentWorktree(slug, gitRoot),
     ensureRepo,
     listSnapshots,
     listWorktrees,
     removeWorktree: (path: string, branch: string, gitRoot: string) =>
-      Worktree.removeAgentWorktree(path, branch, gitRoot),
+      removeAgentWorktree(path, branch, gitRoot),
     rewindTo,
     snapshot,
   };

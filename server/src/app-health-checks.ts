@@ -1,4 +1,4 @@
-import { type Config, Conversation, LLM } from "@yukino.js/yukino";
+import { ConversationManager, createClient, type ProviderConfig } from "@yukino.js/yukino";
 import type { Redis } from "ioredis";
 import type { PrismaDatabaseClient } from "./database/index.js";
 import type { HealthCheck } from "./observability/index.js";
@@ -45,14 +45,9 @@ const withTimeout = async (operation: Promise<unknown>, timeoutMs: number): Prom
   }
 };
 
-const probeModelProvider = async (
-  providerConfig: Config.ProviderConfig.ProviderConfig,
-): Promise<void> => {
-  const client = await LLM.Client.createClient(
-    providerConfig,
-    "You are a health probe. Reply with ok.",
-  );
-  const conversation = new Conversation.ConversationManager();
+const probeModelProvider = async (providerConfig: ProviderConfig): Promise<void> => {
+  const client = await createClient(providerConfig, "You are a health probe. Reply with ok.");
+  const conversation = new ConversationManager();
   conversation.addUserMessage("Reply with ok.");
   for await (const event of client.stream(conversation, [])) {
     if (event.type === "stream_end") return;
@@ -60,7 +55,7 @@ const probeModelProvider = async (
 };
 
 export const createModelProviderHealthCheck = (
-  providerConfig: Config.ProviderConfig.ProviderConfig,
+  providerConfig: ProviderConfig,
   timeoutMs: number,
 ): HealthCheck => ({
   name: "modelProvider",

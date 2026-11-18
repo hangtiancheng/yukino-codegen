@@ -1,8 +1,8 @@
-import type { Agent } from "@yukino.js/yukino";
+import type { AgentEvent } from "@yukino.js/yukino";
 import { describe, expect, it } from "vitest";
 import { createEventAdapter } from "../src/agent-runtime/event-adapter.js";
 
-const first = (adapter: ReturnType<typeof createEventAdapter>, event: Agent.Events.AgentEvent) => {
+const first = (adapter: ReturnType<typeof createEventAdapter>, event: AgentEvent) => {
   const out = adapter.mapEvent(event);
   expect(out).toHaveLength(1);
   const item = out[0];
@@ -157,7 +157,7 @@ describe("createEventAdapter - tool_result", () => {
 describe("createEventAdapter - usage totals", () => {
   it("persists per-event usage and accumulates totals", () => {
     const adapter = createEventAdapter();
-    const usage = (inputTokens: number, outputTokens: number): Agent.Events.AgentEvent => ({
+    const usage = (inputTokens: number, outputTokens: number): AgentEvent => ({
       type: "usage",
       usage: {
         inputTokens,

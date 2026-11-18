@@ -2,9 +2,9 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Sandbox } from "@yukino.js/yukino";
+import { createSandbox, type Sandbox } from "@yukino.js/yukino";
 
-export type SandboxFactory = () => Promise<Sandbox.Sandbox | null>;
+export type SandboxFactory = () => Promise<Sandbox | null>;
 
 /** An explicit environment prevents project scripts from inheriting backend credentials. */
 export function workspaceEnvironment(directory: string): NodeJS.ProcessEnv {
@@ -24,10 +24,10 @@ export class SandboxSession {
   private constructor(
     readonly workDir: string,
     readonly scratchDir: string,
-    private readonly sandbox: Sandbox.Sandbox,
+    private readonly sandbox: Sandbox,
   ) {}
 
-  static async create(workDir: string, factory: SandboxFactory = Sandbox.createSandbox) {
+  static async create(workDir: string, factory: SandboxFactory = createSandbox) {
     const sandbox = await factory();
     if (sandbox === null || !(await sandbox.available())) {
       await sandbox?.dispose?.();

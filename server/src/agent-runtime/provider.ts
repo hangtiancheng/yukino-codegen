@@ -1,4 +1,4 @@
-import type { Config } from "@yukino.js/yukino";
+import type { ProviderConfig } from "@yukino.js/yukino";
 import type { Env } from "../config/index.js";
 
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -7,7 +7,7 @@ export const buildProviderConfig = (
   env: Env,
   modelOverride?: string | null,
   thinkingLevel?: string | null,
-): Config.ProviderConfig.ProviderConfig => ({
+): ProviderConfig => ({
   api_key: env.AI_API_KEY,
   base_url: env.AI_BASE_URL,
   model: modelOverride != null && modelOverride.length > 0 ? modelOverride : env.AI_MODEL,

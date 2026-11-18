@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { Teams } from "@yukino.js/yukino";
+import { listTeamNames, readTeamFile, SharedTaskStore, teamDir } from "@yukino.js/yukino";
 
 export type TeamVo = Readonly<{
   name: string;
@@ -22,8 +22,8 @@ export type TeamTaskVo = Readonly<{
 
 export const listTeams = (workDir: string): TeamVo[] => {
   const result: TeamVo[] = [];
-  for (const dirName of Teams.TeamFile.listTeamNames(workDir)) {
-    const teamFile = Teams.TeamFile.readTeamFile(workDir, dirName);
+  for (const dirName of listTeamNames(workDir)) {
+    const teamFile = readTeamFile(workDir, dirName);
     if (teamFile === null) continue;
     result.push({
       memberCount: teamFile.members.length,
@@ -43,9 +43,7 @@ export const listTeams = (workDir: string): TeamVo[] => {
 };
 
 export const listTeamTasks = (workDir: string, teamName: string): TeamTaskVo[] => {
-  const store = new Teams.SharedTask.SharedTaskStore(
-    join(Teams.TeamFile.teamDir(workDir, teamName), "tasks.json"),
-  );
+  const store = new SharedTaskStore(join(teamDir(workDir, teamName), "tasks.json"));
   return store.listTasks().map((task) => ({
     assignee: task.owner ?? "",
     id: task.id,

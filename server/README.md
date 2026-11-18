@@ -465,7 +465,7 @@ src/agent-runtime/
 ```
 
 One live `AgentRuntime` is kept per `(owner, app)` pair (created lazily, swept after
-`AGENT_WORKSPACE_IDLE_MS`). Each runtime owns a `Remote.Server.RemoteAgentHandle`
+`AGENT_WORKSPACE_IDLE_MS`). Each runtime owns a `RemoteAgentHandle`
 (LLM client, tool registry, conversation, MCP, skills, hooks, teams) and drives the
 agent loop with the same semantics as Yukino's Remote server, adapted for a
 multi-user service:
@@ -524,7 +524,7 @@ published builds. Workspace endpoints (under the configured API base path):
 | `POST /app/:appId/workspace/preview` | Start or join a sandboxed build; return current status     |
 | `GET /app/:appId/workspace/preview`  | Read status, bounded build logs, revision, and preview URL |
 
-The server uses `Sandbox.createSandbox()` from `@yukino.js/yukino` (Linux bubblewrap / macOS seatbelt). Missing sandbox support fails without executing the command. Linux requires `bubblewrap` and usable user namespaces; containers must permit those namespaces. Dependency/build processes receive a reduced environment with a separate temporary home/cache, so backend credentials are not inherited. Yukino's OS sandbox restricts writes; it is not a VM or a complete multi-tenant isolation boundary. Run the service under a dedicated OS account/container when hosting untrusted projects.
+The server uses `createSandbox()` from `@yukino.js/yukino` (Linux bubblewrap / macOS seatbelt). Missing sandbox support fails without executing the command. Linux requires `bubblewrap` and usable user namespaces; containers must permit those namespaces. Dependency/build processes receive a reduced environment with a separate temporary home/cache, so backend credentials are not inherited. Yukino's OS sandbox restricts writes; it is not a VM or a complete multi-tenant isolation boundary. Run the service under a dedicated OS account/container when hosting untrusted projects.
 
 Builds run `npm install --no-audit --no-fund` when dependency manifests change, followed by `npm run build -- --base=./`. Generated projects must provide a Vite-compatible `build` script producing `dist/index.html`. No development server is started. Every successful build copies `dist` into a private snapshot and publishes it atomically; failures preserve the last successful preview. Build timeouts kill the process group. Idle expiry, app deletion, and shutdown revoke preview URLs.
 
